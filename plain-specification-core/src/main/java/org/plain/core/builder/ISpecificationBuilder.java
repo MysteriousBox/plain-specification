@@ -1,5 +1,6 @@
-package org.plain.core;
+package org.plain.core.builder;
 
+import org.plain.core.ISpecification;
 import org.plain.core.expression.Expressions;
 
 public interface ISpecificationBuilder<T> {

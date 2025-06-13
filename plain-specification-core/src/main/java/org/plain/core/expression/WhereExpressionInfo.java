@@ -2,16 +2,14 @@ package org.plain.core.expression;
 
 
 import lombok.Getter;
+import org.plain.core.descriptor.IExpressionDescriptor;
 import org.plain.core.visitor.IExpressionVisitor;
-import org.plain.core.visitor.PredicateExpressionVisitor;
 
-import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class WhereExpressionInfo <T>{
+public class WhereExpressionInfo <T> implements IExpressionDescriptor<T> {
 
-    private Predicate<T> predicate;
-
+    private Predicate<T> filterFunc;
 
     @Getter
     private final Expressions<T> expressions;
@@ -27,11 +25,15 @@ public class WhereExpressionInfo <T>{
         this.expressions = expression;
     }
 
-    public Predicate<T> predicate() {
-        if (predicate == null){
-            predicate = expressions.compiler(visitor).compile();
+    public Predicate<T> filterFunc() {
+        if (filterFunc == null){
+            filterFunc = func(visitor);
         }
-        return predicate;
+        return filterFunc;
     }
 
+    @Override
+    public <R> R func(IExpressionVisitor<T, R> visitor) {
+        return expressions.compiler(visitor).compile();
+    }
 }

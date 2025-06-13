@@ -11,7 +11,7 @@ import java.util.function.Function;
  * @param <V>
  */
 public class LessThanExpression<T, V extends Comparable<V>> extends BinaryExpression<T, V>{
-    public LessThanExpression(Function<T, V> left, V right) {
+    public LessThanExpression(SFunction<T, V> left, V right) {
         super(left, ExpressionOperatorEnum.LESS_THAN, right);
     }
 

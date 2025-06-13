@@ -28,8 +28,8 @@ public class ExpressionsTest {
     }
 
     private Expressions<TestEntity> builder;
-    private Function<TestEntity, String> mockStringFunc;
-    private Function<TestEntity, Integer> mockIntFunc;
+    private SFunction<TestEntity, String> mockStringFunc;
+    private SFunction<TestEntity, Integer> mockIntFunc;
 
     @BeforeEach
     public void setUp() {

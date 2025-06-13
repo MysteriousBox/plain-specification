@@ -1,6 +1,10 @@
 package org.plain.core;
 
 
+import org.plain.core.builder.IOrderedSpecificationBuilder;
+import org.plain.core.builder.ISpecificationBuilder;
+import org.plain.core.builder.SpecificationBuilder;
+import org.plain.core.descriptor.IExpressionDescriptor;
 import org.plain.core.evaluate.ISpecificationEvaluator;
 import org.plain.core.evaluate.InMemorySpecificationEvaluator;
 import org.plain.core.expression.Expressions;
@@ -16,12 +20,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class Specification<T> implements ISpecification<T>{
 
     private final static int DEFAULT_CAPACITY_WHERE = 2;
 
-    private final ISpecificationBuilder<T> query= new Builder<>(this);
+    private final ISpecificationBuilder<T> query= new SpecificationBuilder<>(this);
 
     private final ISpecificationValidator validator = SpecificationValidator.DEFAULT;
 
@@ -44,20 +49,34 @@ public class Specification<T> implements ISpecification<T>{
 
     private List<WhereExpressionInfo<T>> whereExpressions;
 
+    private List<IExpressionDescriptor<T>> whereDescriptors;
+
     private List<OrderExpressionInfo<T>> orderExpressions;
 
-    protected void add(WhereExpressionInfo<T> whereExpressionInfo) {
-        if (whereExpressions == null){
-            whereExpressions = new ArrayList<>(DEFAULT_CAPACITY_WHERE);
+//    public void add(WhereExpressionInfo<T> whereExpressionInfo) {
+//        if (whereExpressions == null){
+//            whereExpressions = new ArrayList<>(DEFAULT_CAPACITY_WHERE);
+//        }
+//        whereExpressions.add(whereExpressionInfo);
+//    }
+
+    public void add(IExpressionDescriptor<T> whereDescriptor) {
+        if (whereDescriptors == null){
+            whereDescriptors = new ArrayList<>();
         }
-        whereExpressions.add(whereExpressionInfo);
+        whereDescriptors.add(whereDescriptor);
     }
 
-    protected void add(OrderExpressionInfo<T> orderExpressionInfo) {
+    public void add(OrderExpressionInfo<T> orderExpressionInfo) {
         if (orderExpressions == null){
             orderExpressions = new ArrayList<>(DEFAULT_CAPACITY_WHERE);
         }
         orderExpressions.add(orderExpressionInfo);
+    }
+
+    @Override
+    public <R> List<R> selectCompiler(IExpressionVisitor<T,R> visitor){
+        return whereDescriptors.stream().map(descriptor -> descriptor.func(visitor)).collect(Collectors.toList());
     }
 
 
@@ -86,12 +105,12 @@ public class Specification<T> implements ISpecification<T>{
     }
 
     @Override
-    public Iterable<WhereExpressionInfo<T>> getWhereExpressionInfos() {
-        return whereExpressions==null? new ArrayList<>(DEFAULT_CAPACITY_WHERE):whereExpressions;
+    public Iterable<IExpressionDescriptor<T>> getWhereExpressions() {
+        return whereDescriptors==null? new ArrayList<>(DEFAULT_CAPACITY_WHERE):whereDescriptors;
     }
 
     @Override
-    public Iterable<OrderExpressionInfo<T>> getOrderExpressionInfos() {
+    public Iterable<OrderExpressionInfo<T>> getOrderExpressions() {
         return orderExpressions==null? new ArrayList<>(DEFAULT_CAPACITY_WHERE):orderExpressions;
     }
 
@@ -107,93 +126,5 @@ public class Specification<T> implements ISpecification<T>{
         IsChainDiscarded.remove();
     }
 
-    private static class Builder<T> implements ISpecificationBuilder<T>, IOrderedSpecificationBuilder<T> {
-        private final Specification<T> specification;
 
-
-        private Builder(Specification<T> specification) {
-            this.specification = specification;
-        }
-
-        @Override
-        public ISpecification<T> getSpecification() {
-            return this.specification;
-        }
-
-        @Override
-        public ISpecificationBuilder<T> where(Expressions<T> expression) {
-            return where(expression,true);
-        }
-
-        @Override
-        public ISpecificationBuilder<T> where(Expressions<T> expression, Boolean condition) {
-            if (condition){
-                WhereExpressionInfo<T> whereExpressionInfo = new WhereExpressionInfo<>(expression,new PredicateExpressionVisitor<>());
-                specification.add(whereExpressionInfo);
-            }
-            return this;
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression) {
-            return orderBy(expression,true);
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression, Boolean condition) {
-            if (condition){
-                OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderBy, new OrderExpressionVisitor<>());
-                specification.add(orderExpressionInfo);
-            }
-            Specification.setIsChainDiscarded(!condition);
-            return this;
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression) {
-            return orderByDescending(expression,true);
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression, Boolean condition) {
-            if (condition){
-                OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderByDescending, new OrderExpressionVisitor<>());
-                specification.add(orderExpressionInfo);
-            }
-            Specification.setIsChainDiscarded(!condition);
-            return this;
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression) {
-            return thenBy(expression,true);
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression, Boolean condition) {
-            if (condition&& !Specification.getIsChainDiscarded()){
-                OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenBy, new OrderExpressionVisitor<>());
-                specification.add(orderExpressionInfo);
-            }else if (condition&& Specification.getIsChainDiscarded()){
-                Specification.setIsChainDiscarded(true);
-            }
-            return this;
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression) {
-            return thenByDescending(expression,true);
-        }
-
-        @Override
-        public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression, Boolean condition) {
-            if (condition&& !Specification.getIsChainDiscarded()){
-                OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenByDescending, new OrderExpressionVisitor<>());
-                specification.add(orderExpressionInfo);
-            }else {
-                Specification.setIsChainDiscarded(true);
-            }
-            return this;
-        }
-    }
 }

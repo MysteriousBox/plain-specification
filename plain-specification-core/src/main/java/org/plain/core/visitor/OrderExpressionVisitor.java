@@ -7,7 +7,10 @@ import java.util.Comparator;
 public class OrderExpressionVisitor<T> extends AbstractExpressionVisitor<T, Comparator<T>> {
 
     @Override
-    public <V extends Comparable<V>> Comparator<T> visit(OrderExpression<T, V> expression) {
-        return Comparator.comparing(t -> expression.getComparator().compare(expression.getLeft().apply(t), expression.getRight()));
+    public <V extends Comparable<V>> Comparator<T> visitOrder(OrderExpression<T, V> expression) {
+        if (expression.getComparator() != null){
+            return Comparator.comparing(t -> expression.getLeft().apply(t), expression.getComparator());
+        }
+        return Comparator.comparing(t -> expression.getLeft().apply(t));
     }
 }

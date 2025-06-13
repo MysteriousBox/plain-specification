@@ -10,13 +10,13 @@ import java.util.function.Function;
  * @param <T>
  */
 @Getter
-public class IsNullExpression<T> implements IExpression<T>{
+public class IsNullExpression<T, V> implements IExpression<T>{
 
-    private final Function<T, Boolean> left;
+    private final SFunction<T, V> left;
 
     private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.IS_NULL;
 
-    public IsNullExpression(Function<T, Boolean> left) {
+    public IsNullExpression(SFunction<T, V> left) {
         this.left = left;
     }
 

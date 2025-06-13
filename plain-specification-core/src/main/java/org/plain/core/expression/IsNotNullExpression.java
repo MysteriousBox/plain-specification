@@ -6,12 +6,12 @@ import org.plain.core.visitor.IExpressionVisitor;
 import java.util.function.Function;
 
 @Getter
-public class IsNotNullExpression <T> implements IExpression<T> {
+public class IsNotNullExpression <T,  V> implements IExpression<T> {
 
-    private final Function<T, Boolean> left;
+    private final SFunction<T, V> left;
     private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.IS_NOT_NULL;
 
-    public IsNotNullExpression(Function<T, Boolean> left) {
+    public IsNotNullExpression(SFunction<T, V> left) {
         this.left = left;
     }
 

@@ -12,7 +12,7 @@ import java.util.function.Function;
 @Getter
 public class GreaterThanExpression<T,V extends Comparable<V>> extends BinaryExpression<T, V> {
 
-    public GreaterThanExpression(Function<T, V> left,  V right) {
+    public GreaterThanExpression(SFunction<T, V> left,  V right) {
         super(left, ExpressionOperatorEnum.GREATER_THAN, right);
     }
 

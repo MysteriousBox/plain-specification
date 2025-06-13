@@ -12,7 +12,7 @@ import java.util.function.Function;
  * @param <V>
  */
 public class NotEqualExpression <T,V extends Comparable<V>> extends BinaryExpression<T, V>{
-    public NotEqualExpression(Function<T, V> left,  V right) {
+    public NotEqualExpression(SFunction<T, V> left,  V right) {
         super(left, ExpressionOperatorEnum.NOT_EQUAL, right);
     }
 

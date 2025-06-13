@@ -9,11 +9,11 @@ import java.util.function.Function;
 @Getter
 public class ExistsExpression <T,E> implements IExpression<T> {
 
-    private final Function<T, Collection<E>> left;
+    private final SFunction<T, Collection<E>> left;
     private final IExpression<E> right;
     private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.EXISTS;
 
-    public ExistsExpression(Function<T, Collection<E>> left, IExpression<E> right) {
+    public ExistsExpression(SFunction<T, Collection<E>> left, IExpression<E> right) {
         this.left = left;
         this.right = right;
     }

@@ -1,5 +1,6 @@
 package org.plain.core.expression;
 
+import org.plain.core.descriptor.IExpressionDescriptor;
 import org.plain.core.visitor.IExpressionVisitor;
 
 import java.util.Collection;
@@ -21,7 +22,7 @@ public class Expressions<T> {
     // Current operator, default is AND
     private ExpressionOperatorEnum  currentOperator = ExpressionOperatorEnum.AND;
 
-    private IExpressionVisitor<T,Predicate<T>> visitor ;
+    private IExpressionVisitor<T,Predicate<T>> visitor;
 
     // Private constructor, prevent the creation of instances
     private Expressions() {
@@ -133,7 +134,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> equal(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> equal(SFunction<T, V> left, V right) {
         return composite(new EqualExpression<>(left, right));
     }
 
@@ -144,7 +145,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> notEqual(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> notEqual(SFunction<T, V> left, V right) {
         return composite(new NotEqualExpression<>(left, right));
     }
 
@@ -155,7 +156,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> greaterThan(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> greaterThan(SFunction<T, V> left, V right) {
         return composite(new GreaterThanExpression<>(left, right));
     }
 
@@ -166,7 +167,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> greaterThanOrEqual(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> greaterThanOrEqual(SFunction<T, V> left, V right) {
         return composite(new GreaterThanOrEqualExpression<>(left, right));
     }
 
@@ -177,7 +178,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> lessThan(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> lessThan(SFunction<T, V> left, V right) {
         return composite(new LessThanExpression<>(left, right));
     }
 
@@ -188,7 +189,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> lessThanOrEqual(Function<T, V> left, V right) {
+    public <V extends Comparable<V>> Expressions<T> lessThanOrEqual(SFunction<T, V> left, V right) {
         return composite(new LessThanOrEqualExpression<>(left, right));
     }
 
@@ -199,7 +200,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> in(Function<T, V> left, Collection<V> right) {
+    public <V extends Comparable<V>> Expressions<T> in(SFunction<T, V> left, Collection<V> right) {
         return composite(new InExpression<>(left, right));
     }
 
@@ -210,7 +211,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> notIn(Function<T, V> left, Collection<V> right) {
+    public <V extends Comparable<V>> Expressions<T> notIn(SFunction<T, V> left, Collection<V> right) {
         return composite(new NotInExpression<>(left, right));
     }
 
@@ -223,7 +224,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <V> The type of the value returned by the left expression
      */
-    public <V extends Comparable<V>> Expressions<T> between(Function<T, V> left, V leftValue, V rightValue) {
+    public <V extends Comparable<V>> Expressions<T> between(SFunction<T, V> left, V leftValue, V rightValue) {
         return composite(new BetweenExpression<>(left, leftValue, rightValue));
     }
 
@@ -233,7 +234,7 @@ public class Expressions<T> {
      * @param right Right expression, the comparison value
      * @return Expressions instance
      */
-    public Expressions<T> like(Function<T, String> left, String right) {
+    public Expressions<T> like(SFunction<T, String> left, String right) {
         return composite(new LikeExpression<>(left, right));
     }
 
@@ -244,7 +245,7 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <E> The type of the value returned by the left expression
      */
-    public <E> Expressions<T> exists(Function<T, Collection<E>> left, IExpression<E> right) {
+    public <E> Expressions<T> exists(SFunction<T, Collection<E>> left, IExpression<E> right) {
         return composite(new ExistsExpression<>(left, right));
     }
 
@@ -255,16 +256,24 @@ public class Expressions<T> {
      * @return Expressions instance
      * @param <E> The type of the value returned by the left expression
      */
-    public <E> Expressions<T> notExists(Function<T, Collection<E>> left, IExpression<E> right) {
+    public <E> Expressions<T> notExists(SFunction<T, Collection<E>> left, IExpression<E> right) {
         return composite(new NotExistsExpression<>(left, right));
     }
 
-    public <V extends Comparable<V>> Expressions<T> orderBy(Function<T, V> left, V right) {
-        return composite(new OrderExpression<>(left, Comparator.naturalOrder(),right));
+    public <V extends Comparable<V>> Expressions<T> orderBy(SFunction<T, V> left) {
+        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
-    public <V extends Comparable<V>> Expressions<T> orderByDescending(Function<T, V> left, V right) {
-        return composite(new OrderExpression<>(left, Comparator.reverseOrder(),right));
+    public <V extends Comparable<V>> Expressions<T> orderByDescending(SFunction<T, V> left) {
+        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.reverseOrder())));
+    }
+
+    public <V extends Comparable<V>> Expressions<T> notNull(SFunction<T,V> left){
+        return composite(new IsNotNullExpression<>(left));
+    }
+
+    public <V extends Comparable<V>>  Expressions<T> isNull(SFunction<T,V> left){
+        return composite(new IsNullExpression<>(left));
     }
 
     /**
@@ -323,7 +332,7 @@ public class Expressions<T> {
         return this;
     }
 
-    public class ExpressionCompiler<R> {
+    public class ExpressionCompiler<R>  {
         private final IExpressionVisitor<T, R> visitor;
 
         public ExpressionCompiler(IExpressionVisitor<T, R> visitor) {

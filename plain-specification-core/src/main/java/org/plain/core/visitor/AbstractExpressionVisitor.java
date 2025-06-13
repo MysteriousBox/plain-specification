@@ -73,12 +73,12 @@ public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisit
     }
 
     @Override
-    public R visitIsNull(IsNullExpression<T> expression) {
+    public <V> R visitIsNull(IsNullExpression<T,V> expression) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public R visitIsNotNull(IsNotNullExpression<T> expression) {
+    public <V> R visitIsNotNull(IsNotNullExpression<T,V> expression) {
         throw new UnsupportedOperationException();
     }
 
@@ -94,7 +94,7 @@ public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisit
     }
 
     @Override
-    public <V extends Comparable<V>> R visit(OrderExpression<T, V> expression) {
+    public <V extends Comparable<V>> R visitOrder(OrderExpression<T, V> expression) {
         return null;
     }
 

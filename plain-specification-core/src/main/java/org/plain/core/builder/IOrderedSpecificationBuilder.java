@@ -1,4 +1,4 @@
-package org.plain.core;
+package org.plain.core.builder;
 
 import org.plain.core.expression.Expressions;
 

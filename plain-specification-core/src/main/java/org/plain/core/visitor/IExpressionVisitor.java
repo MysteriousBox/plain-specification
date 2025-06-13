@@ -11,9 +11,9 @@ public interface IExpressionVisitor<T,R> extends ILogicalExpressionVisitor<T,R>,
 
     R visitLike(LikeExpression<T> expression);
 
-    R visitIsNull(IsNullExpression<T> expression);
+    <V> R visitIsNull(IsNullExpression<T,V> expression);
 
-    R visitIsNotNull(IsNotNullExpression<T> expression);
+    <V> R visitIsNotNull(IsNotNullExpression<T,V> expression);
 
     <E> R visitExists(ExistsExpression<T,E> expression);
 

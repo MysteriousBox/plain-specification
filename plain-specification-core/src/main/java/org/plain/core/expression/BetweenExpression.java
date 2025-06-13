@@ -14,11 +14,11 @@ import java.util.function.Function;
 @Getter
 public class BetweenExpression <T, V extends Comparable<V>> implements IExpression<T>{
 
-    private final Function<T, V> left;
+    private final SFunction<T, V> left;
     private final V lowerBound;
     private final V upperBound;
 
-    public BetweenExpression(Function<T, V> left, V lowerBound, V upperBound) {
+    public BetweenExpression(SFunction<T, V> left, V lowerBound, V upperBound) {
         this.left = left;
         this.lowerBound = lowerBound;
         this.upperBound = upperBound;

@@ -1,9 +1,13 @@
 package org.plain.core;
 
+import org.plain.core.builder.ISpecificationBuilder;
+import org.plain.core.descriptor.IExpressionDescriptor;
 import org.plain.core.expression.OrderExpressionInfo;
 import org.plain.core.expression.WhereExpressionInfo;
+import org.plain.core.visitor.IExpressionVisitor;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -18,9 +22,13 @@ public interface ISpecification<T> {
 
     Boolean isSatisfiedBy(T entity);
 
+    <R> List<R> selectCompiler(IExpressionVisitor<T,R> visitor);
+
     Function<Collection<T>, Collection<T>> postProcessingAction();
 
-    Iterable<WhereExpressionInfo<T>> getWhereExpressionInfos();
+    Iterable<IExpressionDescriptor<T>> getWhereExpressions();
 
-    Iterable<OrderExpressionInfo<T>> getOrderExpressionInfos();
+    Iterable<OrderExpressionInfo<T>> getOrderExpressions();
+
+
 }

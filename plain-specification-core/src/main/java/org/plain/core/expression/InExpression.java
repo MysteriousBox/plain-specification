@@ -14,11 +14,11 @@ import java.util.function.Function;
 @Getter
 public class InExpression <T,V extends Comparable<V>> implements IExpression<T>{
 
-    private final Function<T, V> left;
+    private final SFunction<T, V> left;
     private final Collection<V> right;
     private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.IN;
 
-    public InExpression(Function<T, V> left, Collection<V> right) {
+    public InExpression(SFunction<T, V> left, Collection<V> right) {
         this.left = left;
         this.right = right;
     }

@@ -2,13 +2,14 @@ package org.plain.core.expression;
 
 import lombok.Getter;
 import org.plain.core.OrderTypeEnum;
+import org.plain.core.descriptor.IExpressionDescriptor;
 import org.plain.core.visitor.IExpressionVisitor;
 import org.plain.core.visitor.OrderExpressionVisitor;
 
 import java.util.Comparator;
 
 
-public class OrderExpressionInfo<T> {
+public class OrderExpressionInfo<T> implements IExpressionDescriptor<T> {
 
     private Comparator<T> keySelectorFunc;
 
@@ -36,5 +37,10 @@ public class OrderExpressionInfo<T> {
             keySelectorFunc = keySelector.compiler(visitor).compile();
         }
         return keySelectorFunc;
+    }
+
+    @Override
+    public <R> R func(IExpressionVisitor<T, R> visitor) {
+        return keySelector.compiler(visitor).compile();
     }
 }

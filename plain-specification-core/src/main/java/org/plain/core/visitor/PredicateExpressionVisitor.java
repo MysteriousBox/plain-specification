@@ -127,12 +127,12 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
     }
 
     @Override
-    public Predicate<T> visitIsNull(IsNullExpression<T> expression) {
+    public <V> Predicate<T> visitIsNull(IsNullExpression<T,V> expression) {
         return t-> expression.getLeft().apply(t) == null;
     }
 
     @Override
-    public Predicate<T> visitIsNotNull(IsNotNullExpression<T> expression) {
+    public <V> Predicate<T> visitIsNotNull(IsNotNullExpression<T,V> expression) {
         return t -> expression.getLeft().apply(t) != null;
     }
 

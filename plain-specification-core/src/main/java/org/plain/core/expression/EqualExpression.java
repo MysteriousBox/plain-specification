@@ -14,7 +14,7 @@ import java.util.function.Function;
 public class EqualExpression<T,V extends Comparable<V>> extends BinaryExpression<T, V>{
 
 
-    public EqualExpression(Function<T, V> left, V right) {
+    public EqualExpression(SFunction<T, V> left, V right) {
         super(left, ExpressionOperatorEnum.EQUAL, right);
     }
 
