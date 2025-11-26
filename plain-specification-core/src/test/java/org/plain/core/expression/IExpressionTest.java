@@ -5,7 +5,8 @@ package org.plain.core.expression;
 import lombok.Getter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.plain.core.visitor.PredicateExpressionVisitor;
+import org.plain.specification.core.expression.*;
+import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
 
 import java.util.function.Predicate;

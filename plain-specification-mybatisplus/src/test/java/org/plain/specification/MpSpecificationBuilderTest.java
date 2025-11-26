@@ -9,11 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.core.toolkit.LambdaUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.baomidou.mybatisplus.core.toolkit.support.LambdaMeta;
-import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
-import com.baomidou.mybatisplus.core.toolkit.support.SerializedLambda;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -23,24 +19,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.plain.core.ISpecification;
-import org.plain.core.Specification;
-import org.plain.core.builder.ISpecificationBuilder;
-import org.plain.core.expression.Expressions;
+import org.plain.specification.mybatisplus.MpFieldNameResolver;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.io.Serializable;
-import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -81,26 +68,6 @@ public class MpSpecificationBuilderTest {
 
     @Test
     public void test() {
-        List<Person> persons = Arrays.asList(
-                new Person(1L,"张三", 18),
-                new Person( 2L,"李四", 19),
-                new Person( 3L,"王五", 20),
-                new Person(4L,"赵六", 21)
-        );
-        ArgumentCaptor<LambdaQueryWrapper<Person>> argumentCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        when(mapper.selectList(argumentCaptor.capture())).thenAnswer(invocationOnMock -> {
-            LambdaQueryWrapper<Person> wrapper = invocationOnMock.getArgument(0);
-            System.out.println("Conditions: " + wrapper.getParamNameValuePairs());
-            System.out.println("Expression: " + wrapper.getExpression().getNormal());
-            wrapper.getExpression().getNormal().getSqlSegment();
-            return persons.stream().filter(person -> matchesConditions(person, wrapper.getParamNameValuePairs())).collect(Collectors.toList());
-
-        });
-        Specification<Person> specification = new Specification<>();
-        specification.query()
-                .where(Expressions.<Person>create().equal(Person::getName, "张三").equal(Person::getAge, 18))
-                .where(Expressions.<Person>create().equal(Person::getName, "李四").equal(Person::getAge, 28));
-
 
 
 
@@ -132,8 +99,7 @@ public class MpSpecificationBuilderTest {
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(new Person(1L, "张三", 18)));
 
         // Act
-        QueryWrapper<Person> wrapper = new QueryWrapper<Person>().eq(nameField, "张三");
-        wrapper.and(queryWrapper -> queryWrapper.eq("name", "张三"));
+        LambdaQueryWrapper<Person> wrapper = Wrappers.<Person>lambdaQuery().eq(Person::getName, "张三");
         List<Person> people = mapper.selectList(wrapper);
 
         // Assert

@@ -2,12 +2,13 @@ package org.plain.specification;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.junit.jupiter.api.Test;
-import org.plain.core.ISpecification;
-import org.plain.core.Specification;
-import org.plain.core.builder.ISpecificationBuilder;
-import org.plain.core.descriptor.IExpressionDescriptor;
-import org.plain.core.expression.Expressions;
-import org.plain.core.expression.OrderExpressionInfo;
+import org.plain.specification.core.ISpecification;
+import org.plain.specification.core.Specification;
+import org.plain.specification.core.builder.ISpecificationBuilder;
+import org.plain.specification.core.descriptor.IExpressionDescriptor;
+import org.plain.specification.core.expression.Expressions;
+import org.plain.specification.core.expression.OrderExpressionInfo;
+import org.plain.specification.mybatisplus.MybatisplusExpressionVisitor;
 
 import java.util.Arrays;
 
