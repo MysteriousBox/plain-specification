@@ -10,8 +10,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>plain-specification-core</module>
-        <module>plain-specification-mybatisplus</module>
-        <module>plain-specification-redis</module>
+        <module>plain-specification-executor</module>
     </modules>
 
     <properties>
@@ -24,6 +23,17 @@
         <junit.version>5.9.3</junit.version>
         <mockito.version>4.2.0</mockito.version>
         <lang3.version>3.12.0</lang3.version>
+        <redis-om-spring.version>0.8.7</redis-om-spring.version>
+        <spring-test.version>5.3.33</spring-test.version>
+        <spring-context.version>5.3.31</spring-context.version>
+        <spring-tx.version>5.3.31</spring-tx.version>
+        <slf4j.version>2.0.16</slf4j.version>
+        <plain-utils.version>1.0-SNAPSHOT</plain-utils.version>
+        <plain-specification-core.version>1.0-SNAPSHOT</plain-specification-core.version>
+        <plain-specification-executor-redis.version>1.0-SNAPSHOT</plain-specification-executor-redis.version>
+        <plain-specification-executor-mybatisplus.version>1.0-SNAPSHOT</plain-specification-executor-mybatisplus.version>
+        <spring-boot-starter-data-redis.version>2.7.18</spring-boot-starter-data-redis.version>
+        <json.version>20231013</json.version>
     </properties>
 
     <dependencyManagement>
@@ -86,49 +96,55 @@
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-test</artifactId>
-                <version>5.3.33</version> <!-- 与 spring-context 或 spring-boot 保持一致版本 -->
+                <version>${spring-test.version}</version> <!-- 与 spring-context 或 spring-boot 保持一致版本 -->
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-context</artifactId>
-                <version>5.3.31</version>
+                <version>${spring-context.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-tx</artifactId>
-                <version>5.3.31</version>
+                <version>${spring-tx.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>2.0.16</version>
+                <version>${slf4j.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.plain.utils</groupId>
                 <artifactId>plain-utils</artifactId>
-                <version>1.0-SNAPSHOT</version>
+                <version>${plain-utils.version}</version>
                 <scope>compile</scope>
             </dependency>
             <dependency>
                 <groupId>org.plain</groupId>
                 <artifactId>plain-specification-core</artifactId>
-                <version>1.0-SNAPSHOT</version>
+                <version>${plain-specification-core.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.plain</groupId>
-                <artifactId>plain-specification-mybatisplus</artifactId>
-                <version>1.0-SNAPSHOT</version>
+                <artifactId>plain-specification-executor-redis</artifactId>
+                <version>${plain-specification-executor-redis.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.plain</groupId>
-                <artifactId>plain-specification-redis</artifactId>
-                <version>1.0-SNAPSHOT</version>
+                <artifactId>plain-specification-executor-mybatisplus</artifactId>
+                <version>${plain-specification-executor-mybatisplus.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-data-redis</artifactId>
-                <version>2.7.18</version>
+                <version>${spring-boot-starter-data-redis.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${json.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

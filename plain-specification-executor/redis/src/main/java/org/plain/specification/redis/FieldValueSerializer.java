@@ -1,0 +1,13 @@
+package org.plain.specification.redis;
+
+/**
+ * 可选的字段值序列化器，用于将单个字段值序列化为 Redis 中存储的字符串。
+ * 这个接口与 {@link Serializer} 不同，Serializer 是针对整��实体的；此接口用于按字段自定义序列化策略。
+ *
+ * 实现类应保证序列化与反序列化（在 EntityBuilder 中）的一致性。
+ */
+@FunctionalInterface
+public interface FieldValueSerializer {
+    String serialize(Object value);
+}
+

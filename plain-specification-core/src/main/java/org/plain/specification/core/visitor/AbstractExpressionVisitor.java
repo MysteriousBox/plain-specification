@@ -2,6 +2,8 @@ package org.plain.specification.core.visitor;
 
 import org.plain.specification.core.expression.*;
 
+import java.util.Comparator;
+
 public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisitor<T,R> {
 
     @Override
@@ -96,4 +98,12 @@ public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisit
     }
 
 
+
+    protected static <V extends Comparable<V>> boolean isReverseOrder(Comparator<V> comparator) {
+        if (comparator == null) {
+            return false;
+        }
+        // 安全判断是否为反序
+        return comparator.equals(Comparator.reverseOrder()) || comparator.toString().toLowerCase().contains("reverse");
+    }
 }

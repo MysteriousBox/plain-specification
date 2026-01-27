@@ -1,0 +1,127 @@
+package org.plain.specification.redis;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.plain.utils.JsonUtil;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.HashOperations;
+
+import java.util.Collections;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class GenericRedisRepositoryTest {
+
+    @Mock
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ValueOperations<String, String> valueOps;
+    @Mock
+    private ZSetOperations<String, String> zSetOps;
+    @Mock
+    private HashOperations<String, String, String> hashOps;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOps);
+        doReturn(hashOps).when(redisTemplate).opsForHash();
+    }
+
+    static class User {
+        public String id;
+        public String name;
+
+        public User() {}
+
+        public User(String id, String name) {
+            this.id = id; this.name = name;
+        }
+
+        public String getId(){ return id; }
+        public void setId(String id){ this.id = id; }
+        public String getName(){ return name; }
+        public void setName(String name){ this.name = name; }
+    }
+
+    @Test
+    void testSaveAndFindById() {
+        RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
+            .zSetKey("users:zset")
+            .serializer(DefaultStrategies.jacksonSerializer())
+            .deserializer(DefaultStrategies.jacksonDeserializer(User.class))
+            .idExtractor(DefaultStrategies.reflectionIdExtractor(User.class, null))
+            .scoreProvider(DefaultStrategies.defaultScoreProvider())
+            .ttlProvider(DefaultStrategies.defaultTtlProvider())
+            .fieldExtractor(entity -> {
+                Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", entity.getId());
+                map.put("name", entity.getName());
+                return map;
+            }) // mock
+            .entityBuilder(map -> {
+                User user = new User();
+                user.setId(JsonUtil.deserialize((String) map.get("id"), String.class));
+                user.setName(JsonUtil.deserialize((String) map.get("name"), String.class));
+                return user;
+            }) // mock entityBuilder
+            .build();
+        GenericRedisRepository<User, String> repo = new GenericRedisRepository<>(redisTemplate, config);
+        User u = new User("1","Alice");
+
+        // mock ZADD and SETEX: we can't assert internal execute of script easily; verify that no exception
+        doReturn(null).when(valueOps).get(anyString());
+        Map<String, String> entries = new java.util.HashMap<>();
+        entries.put("id", "\"1\"");
+        entries.put("name", "\"Alice\"");
+        when(hashOps.entries(anyString())).thenReturn(entries);
+        when(zSetOps.range(eq("users:zset"), eq(0L), eq(0L))).thenReturn(Collections.singleton("1"));
+        String userJson = JsonUtil.serialize(u);
+        when(valueOps.multiGet(anyList())).thenReturn(Collections.singletonList(userJson));
+        when(redisTemplate.execute(any(), anyList(), any())).thenReturn(1); // mock execute to return success
+
+        User saved = repo.save(u);
+        assertNotNull(saved);
+        verify(redisTemplate, atLeastOnce()).execute(any(), anyList(), any());
+
+        User found = repo.findById("1");
+        assertNotNull(found);
+        assertEquals("Alice", found.getName());
+    }
+
+    @Test
+    void testDeleteById() {
+        RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
+            .zSetKey("users:zset")
+            .serializer(DefaultStrategies.jacksonSerializer())
+            .deserializer(DefaultStrategies.jacksonDeserializer(User.class))
+            .idExtractor(DefaultStrategies.reflectionIdExtractor(User.class, null))
+            .scoreProvider(DefaultStrategies.defaultScoreProvider())
+            .ttlProvider(DefaultStrategies.defaultTtlProvider())
+            .fieldExtractor(entity -> {
+                Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", entity.getId());
+                map.put("name", entity.getName());
+                return map;
+            }) // mock
+            .entityBuilder(map -> {
+                User user = new User();
+                user.setId(JsonUtil.deserialize((String) map.get("id"), String.class));
+                user.setName(JsonUtil.deserialize((String) map.get("name"), String.class));
+                return user;
+            }) // mock entityBuilder
+            .build();
+        GenericRedisRepository<User, String> repo = new GenericRedisRepository<>(redisTemplate, config);
+        when(redisTemplate.execute(any(), anyList(), any())).thenReturn(1); // mock execute to return success
+        repo.deleteById("1");
+        // delete uses redisTemplate.execute with lua script
+        verify(redisTemplate, atLeastOnce()).execute(any(), anyList(), any());
+    }
+}
