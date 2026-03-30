@@ -53,24 +53,26 @@ public final class KeyNamingUtils {
     /**
      * Compute the ZSet key by prefixing the provided zSet name with the computed prefix.
      * <ul>
-     *   <li>If {@code prefix} is empty: return {@code zSetKey} if provided, otherwise {@code defaultName}.</li>
-     *   <li>If {@code prefix} is non-empty: ensure a single ':' separator and return
-     *       prefix + (zSetKey or defaultName).</li>
+     *   <li>Always returns a key starting with {@code prefix}.</li>
+     *   <li>If {@code zSetKey} is empty: returns {@code prefix + defaultName}.</li>
      *   <li>If {@code zSetKey} starts with ':' it is treated as a relative name and the leading ':' is dropped.</li>
+     *   <li>Otherwise returns {@code prefix + zSetKey}.</li>
      * </ul>
+     * <b>Note: prefix must not be null or empty.</b>
      *
-     * @param prefix      computed prefix (may be {@code null} or empty)
+     * @param prefix      computed prefix (must not be {@code null} or empty, always prepended)
      * @param zSetKey     requested zset name (may be {@code null} or empty)
      * @param defaultName default zset name when none provided (must not be {@code null} or empty)
-     * @return full ZSet key (never {@code null})
+     * @return full ZSet key (never {@code null}), always starts with prefix
+     * @throws IllegalArgumentException if prefix or defaultName is null or empty
      */
     public static String computeZsetKey(String prefix, String zSetKey, String defaultName) {
+        if (prefix == null || prefix.isEmpty()) {
+            throw new IllegalArgumentException("prefix must not be null or empty");
+        }
         Objects.requireNonNull(defaultName, "defaultName must not be null");
         if (defaultName.isEmpty()) {
             throw new IllegalArgumentException("defaultName must not be empty");
-        }
-        if (isNullOrEmpty(prefix)) {
-            return isNullOrEmpty(zSetKey) ? defaultName : zSetKey;
         }
         final String p = prefix.endsWith(":") ? prefix : prefix + ":";
         if (isNullOrEmpty(zSetKey)) {

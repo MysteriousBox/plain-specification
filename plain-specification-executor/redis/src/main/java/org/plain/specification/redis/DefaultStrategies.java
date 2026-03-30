@@ -2,6 +2,11 @@ package org.plain.specification.redis;
 
 import org.plain.utils.JsonUtil;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -75,6 +80,14 @@ public final class DefaultStrategies {
             }
             TID id = null;
             try {
+                id = tryGetIdByJacksonAnnotation(clazz, entity);
+            } catch (Exception e) {
+                // ignore, 尝试下一个
+            }
+            if (id != null) {
+                return id;
+            }
+            try {
                 id = tryGetId(clazz, entity, "getId", true);
             } catch (Exception e) {
                 // ignore, 尝试下一个
@@ -100,27 +113,160 @@ public final class DefaultStrategies {
     }
 
     /**
-     * 反射辅助方法，尝试通过方法或字段获取ID。
+     * Reflectively get an ID value from a field or no-arg getter on the class or its superclasses.
      *
-     * @param clazz 实体类型
-     * @param entity 实体对象
-     * @param name 方法名或字段名
-     * @param isMethod 是否为方法
-     * @return 提取到的ID，失败抛出 NoSuchMethodException/NoSuchFieldException
+     * @param clazz entity class to inspect
+     * @param entity entity instance
+     * @param name field or method name
+     * @param isMethod true for method lookup, false for field lookup
+     * @return extracted id value
+     * @throws Exception when the field/method is missing or reflection invocation fails
      */
     private static <T, TID> TID tryGetId(Class<T> clazz, T entity, String name, boolean isMethod) throws Exception {
-        if (isMethod) {
-            Method m = clazz.getMethod(name);
-            @SuppressWarnings("unchecked")
-            TID id = (TID) m.invoke(entity);
-            return id;
-        } else {
-            Field f = clazz.getDeclaredField(name);
-            f.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            TID id = (TID) f.get(entity);
-            return id;
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            if (isMethod) {
+                try {
+                    Method method = current.getDeclaredMethod(name);
+                    method.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    TID id = (TID) method.invoke(entity);
+                    return id;
+                } catch (NoSuchMethodException e) {
+                    // try superclass
+                }
+            } else {
+                try {
+                    Field field = current.getDeclaredField(name);
+                    field.setAccessible(true);
+                    @SuppressWarnings("unchecked")
+                    TID id = (TID) field.get(entity);
+                    return id;
+                } catch (NoSuchFieldException e) {
+                    // try superclass
+                }
+            }
+            current = current.getSuperclass();
         }
+        if (isMethod) {
+            throw new NoSuchMethodException(name);
+        }
+        throw new NoSuchFieldException(name);
+    }
+
+    /**
+     * Check whether the given property name represents an ID.
+     *
+     * @param name property name
+     * @return true if the name equals "id" (case-insensitive)
+     */
+    private static boolean isIdPropertyName(String name) {
+        return "id".equalsIgnoreCase(name);
+    }
+
+    /**
+     * Derive the property name from a JavaBean getter.
+     *
+     * @param method getter method
+     * @return property name inferred from getter signature
+     */
+    private static String getterToPropertyName(Method method) {
+        String name = method.getName();
+        if (name.startsWith("get") && name.length() > 3) {
+            return Character.toLowerCase(name.charAt(3)) + name.substring(4);
+        }
+        if (name.startsWith("is") && name.length() > 2) {
+            return Character.toLowerCase(name.charAt(2)) + name.substring(3);
+        }
+        return name;
+    }
+
+    /**
+     * Determine whether a field is annotated as an ID via Jackson annotations.
+     *
+     * @param field field to inspect
+     * @return true if JsonProperty/JsonAlias marks it as "id"
+     */
+    private static boolean hasIdAnnotation(Field field) {
+        JsonProperty jsonProperty = field.getAnnotation(JsonProperty.class);
+        if (jsonProperty != null) {
+            String value = jsonProperty.value();
+            String name = (value == null || value.isEmpty()) ? field.getName() : value;
+            return isIdPropertyName(name);
+        }
+        JsonAlias jsonAlias = field.getAnnotation(JsonAlias.class);
+        if (jsonAlias != null) {
+            for (String alias : jsonAlias.value()) {
+                if (isIdPropertyName(alias)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Determine whether a no-arg method is annotated as an ID via Jackson annotations.
+     *
+     * @param method method to inspect
+     * @return true if JsonProperty/JsonGetter/JsonAlias marks it as "id"
+     */
+    private static boolean hasIdAnnotation(Method method) {
+        JsonProperty jsonProperty = method.getAnnotation(JsonProperty.class);
+        if (jsonProperty != null) {
+            String value = jsonProperty.value();
+            String name = (value == null || value.isEmpty()) ? getterToPropertyName(method) : value;
+            return isIdPropertyName(name);
+        }
+        JsonGetter jsonGetter = method.getAnnotation(JsonGetter.class);
+        if (jsonGetter != null) {
+            String value = jsonGetter.value();
+            String name = (value == null || value.isEmpty()) ? getterToPropertyName(method) : value;
+            return isIdPropertyName(name);
+        }
+        JsonAlias jsonAlias = method.getAnnotation(JsonAlias.class);
+        if (jsonAlias != null) {
+            for (String alias : jsonAlias.value()) {
+                if (isIdPropertyName(alias)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Try extracting the ID by scanning Jackson-annotated fields/getters in the class hierarchy.
+     *
+     * @param clazz entity class to inspect
+     * @param entity entity instance
+     * @return extracted id value or null if not found
+     * @throws Exception when reflection access fails
+     */
+    private static <T, TID> TID tryGetIdByJacksonAnnotation(Class<T> clazz, T entity) throws Exception {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                if (!hasIdAnnotation(field)) {
+                    continue;
+                }
+                field.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                TID id = (TID) field.get(entity);
+                return id;
+            }
+            for (Method method : current.getDeclaredMethods()) {
+                if (method.getParameterCount() != 0 || !hasIdAnnotation(method)) {
+                    continue;
+                }
+                method.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                TID id = (TID) method.invoke(entity);
+                return id;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
     }
 
     /**
@@ -230,13 +376,27 @@ public final class DefaultStrategies {
                 // serialize via JsonUtil then deserialize into a Map to reuse project's JSON config
                 String json = JsonUtil.serialize(entity);
                 @SuppressWarnings("unchecked")
-                Map<String, Object> map = JsonUtil.deserialize(json, Map.class);
-                return map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to convert entity to map via JsonUtil: " + entity, e);
-            }
-        };
-    }
+                Map<String, Object> map = JsonUtil.deserializeBuilder().registerModule(new JavaTimeModule()).deserialize(json, Map.class);
+                // JsonUtil may deserialize JSON `null` values into map entries with null values或
+                // even produce entries with null keys (malformed input). Collectors.toMap(...) and
+                // some downstream code may throw on null keys — be defensive: skip null keys and
+                // preserve null values.
+                if (map == null) {
+                    return new HashMap<>();
+                }
+                Map<String, Object> result = new HashMap<>();
+                for (Map.Entry<String, Object> e : map.entrySet()) {
+                    if (e == null || e.getKey() == null) {
+                        continue;
+                    }
+                    result.put(e.getKey(), e.getValue());
+                }
+                return result;
+             } catch (Exception e) {
+                 throw new IllegalStateException("Failed to convert entity to map via JsonUtil: " + entity, e);
+             }
+         };
+     }
 
     // Provide an EntityBuilder that converts a Map<Object,Object> (from redis entries) to target class
     @SuppressWarnings("unused")

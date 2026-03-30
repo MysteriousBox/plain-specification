@@ -16,7 +16,7 @@ import java.util.concurrent.ForkJoinPool;
 
 /**
  * 自动装配：提供全局 RedisRepositoryConfig 构建器和默认策略注入点
- *
+ * <p>
  * 使用本模块的 RedisRepositoryFactory（避免与 Spring Data 的同名类冲突）
  *
  * @author Jayden.Liang
@@ -89,22 +89,21 @@ public class PlainRedisAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public RedisRepositoryConfig<Object, Object> globalRedisRepositoryConfig(RedisRepositoryProperties props,
-                                                                                 ObjectProvider<Executor> executorProvider,
-                                                                                 RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider,
-                                                                                 FieldValueSerializer fieldValueSerializer,
-                                                                                 Serializer<Object> serializer,
-                                                                                 Deserializer<Object> deserializer,
-                                                                                 IdExtractor<Object, Object> idExtractor,
-                                                                                 ScoreProvider<Object> scoreProvider,
-                                                                                 TtlProvider<Object> ttlProvider,
-                                                                                 FieldExtractor<Object> fieldExtractor,
-                                                                                 EntityBuilder<Object> entityBuilder) {
+                                                                             ObjectProvider<Executor> executorProvider,
+                                                                             RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider,
+                                                                             FieldValueSerializer fieldValueSerializer,
+                                                                             Serializer<Object> serializer,
+                                                                             Deserializer<Object> deserializer,
+                                                                             IdExtractor<Object, Object> idExtractor,
+                                                                             ScoreProvider<Object> scoreProvider,
+                                                                             TtlProvider<Object> ttlProvider,
+                                                                             FieldExtractor<Object> fieldExtractor,
+                                                                             EntityBuilder<Object> entityBuilder) {
         Objects.requireNonNull(props, "RedisRepositoryProperties must not be null");
         RedisRepositoryConfig.Builder<Object, Object> b = new RedisRepositoryConfig.Builder<>();
 
-        b.keyPrefix(props.getKeyPrefix())
-                .keyPrefixProvider(keyPrefixProvider)
-                .fieldValueSerializer(fieldValueSerializer)
+        // 只设置必要策略和最终可用字段
+        b.keyPrefixProvider(keyPrefixProvider)
                 .defaultZsetName(props.getDefaultZsetName())
                 .defaultTtl(props.getDefaultTtl())
                 .batchSize(props.getBatchSize())
@@ -114,18 +113,28 @@ public class PlainRedisAutoConfiguration {
                 .scoreProvider(scoreProvider)
                 .ttlProvider(ttlProvider)
                 .fieldExtractor(fieldExtractor)
-                .entityBuilder(entityBuilder);
-        Executor exe = executorProvider.getIfAvailable(ForkJoinPool::commonPool);
+                .entityBuilder(entityBuilder)
+                .fieldValueSerializer(fieldValueSerializer);
+        Executor exe = executorProvider.getIfUnique();
+        if (exe == null) {
+            exe = ForkJoinPool.commonPool();
+        }
         b.asyncExecutor(exe);
         return b.build();
     }
 
     @Bean
     @ConditionalOnMissingBean
+    public RedisRepositoryConfigResolver redisRepositoryConfigResolver(RedisRepositoryConfig<Object, Object> globalConfig) {
+        return new RedisRepositoryConfigResolver(globalConfig);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public RedisRepositoryFactory redisRepositoryFactory(StringRedisTemplate redisTemplate,
-                                                         RedisRepositoryConfig<Object, Object> globalConfig) {
+                                                         RedisRepositoryConfigResolver resolver) {
         Objects.requireNonNull(redisTemplate, "StringRedisTemplate must not be null");
-        Objects.requireNonNull(globalConfig, "globalConfig must not be null");
-        return new RedisRepositoryFactory(redisTemplate, globalConfig);
+        // use two-arg constructor for compatibility with available constructor overloads
+        return new RedisRepositoryFactory(redisTemplate, resolver);
     }
 }

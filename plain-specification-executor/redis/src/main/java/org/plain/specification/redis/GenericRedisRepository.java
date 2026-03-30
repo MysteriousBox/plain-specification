@@ -46,15 +46,15 @@ public class GenericRedisRepository<T, TID> extends RedisBaseRepository<T, TID> 
             throw new IllegalArgumentException("zSetKey must not be null or empty");
         }
         RedisRepositoryConfig.Builder<T, TID> b = new RedisRepositoryConfig.Builder<>();
-        b.zSetKey(zSetKey)
-                .serializer(DefaultStrategies.jacksonSerializer())
-                .deserializer(DefaultStrategies.jacksonDeserializer(entityClass))
-                .idExtractor(DefaultStrategies.reflectionIdExtractor(entityClass, null))
-                .scoreProvider(DefaultStrategies.defaultScoreProvider())
-                .ttlProvider(DefaultStrategies.defaultTtlProvider())
-                .fieldExtractor(DefaultStrategies.reflectionFieldExtractor())
-                .entityBuilder(DefaultStrategies.reflectionEntityBuilder(entityClass))
-                .build();
+        b.resolvedZsetKey(zSetKey)
+         .resolvedHashKeyPrefix("")
+         .serializer(DefaultStrategies.jacksonSerializer())
+         .deserializer(DefaultStrategies.jacksonDeserializer(entityClass))
+         .idExtractor(DefaultStrategies.reflectionIdExtractor(entityClass, null))
+         .scoreProvider(DefaultStrategies.defaultScoreProvider())
+         .ttlProvider(DefaultStrategies.defaultTtlProvider())
+         .fieldExtractor(DefaultStrategies.reflectionFieldExtractor())
+         .entityBuilder(DefaultStrategies.reflectionEntityBuilder(entityClass));
         return b.build();
     }
 

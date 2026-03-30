@@ -54,22 +54,23 @@ class GenericRedisRepositoryTest {
     @Test
     void testSaveAndFindById() {
         RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
-            .zSetKey("users:zset")
+            .resolvedZsetKey("users:zset")
+            .resolvedHashKeyPrefix("user:")
             .serializer(DefaultStrategies.jacksonSerializer())
             .deserializer(DefaultStrategies.jacksonDeserializer(User.class))
             .idExtractor(DefaultStrategies.reflectionIdExtractor(User.class, null))
             .scoreProvider(DefaultStrategies.defaultScoreProvider())
             .ttlProvider(DefaultStrategies.defaultTtlProvider())
             .fieldExtractor(entity -> {
-                Map<String, Object> map = new java.util.HashMap<>();
-                map.put("id", entity.getId());
-                map.put("name", entity.getName());
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", entity.id);
+                map.put("name", entity.name);
                 return map;
             }) // mock
             .entityBuilder(map -> {
                 User user = new User();
-                user.setId(JsonUtil.deserialize((String) map.get("id"), String.class));
-                user.setName(JsonUtil.deserialize((String) map.get("name"), String.class));
+                user.id = JsonUtil.deserialize((String) ((Map<?, ?>)map).get("id"), String.class);
+                user.name = JsonUtil.deserialize((String) ((Map<?, ?>)map).get("name"), String.class);
                 return user;
             }) // mock entityBuilder
             .build();
@@ -99,22 +100,23 @@ class GenericRedisRepositoryTest {
     @Test
     void testDeleteById() {
         RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
-            .zSetKey("users:zset")
+            .resolvedZsetKey("users:zset")
+            .resolvedHashKeyPrefix("user:")
             .serializer(DefaultStrategies.jacksonSerializer())
             .deserializer(DefaultStrategies.jacksonDeserializer(User.class))
             .idExtractor(DefaultStrategies.reflectionIdExtractor(User.class, null))
             .scoreProvider(DefaultStrategies.defaultScoreProvider())
             .ttlProvider(DefaultStrategies.defaultTtlProvider())
             .fieldExtractor(entity -> {
-                Map<String, Object> map = new java.util.HashMap<>();
-                map.put("id", entity.getId());
-                map.put("name", entity.getName());
+                java.util.Map<String, Object> map = new java.util.HashMap<>();
+                map.put("id", entity.id);
+                map.put("name", entity.name);
                 return map;
             }) // mock
             .entityBuilder(map -> {
                 User user = new User();
-                user.setId(JsonUtil.deserialize((String) map.get("id"), String.class));
-                user.setName(JsonUtil.deserialize((String) map.get("name"), String.class));
+                user.id = JsonUtil.deserialize((String) ((Map<?, ?>)map).get("id"), String.class);
+                user.name = JsonUtil.deserialize((String) ((Map<?, ?>)map).get("name"), String.class);
                 return user;
             }) // mock entityBuilder
             .build();

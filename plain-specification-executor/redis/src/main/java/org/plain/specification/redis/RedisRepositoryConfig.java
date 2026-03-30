@@ -21,10 +21,9 @@ import java.util.concurrent.Executor;
 @ToString
 @SuppressWarnings("unused")
 public final class RedisRepositoryConfig<T, TID> {
+    // --- 必要通用配置 ---
     private final long defaultTtl;
     private final int batchSize;
-    private final String keyPrefix;
-    private final String zSetKey;
     private final Serializer<T> serializer;
     private final Deserializer<T> deserializer;
     private final IdExtractor<T, TID> idExtractor;
@@ -34,16 +33,21 @@ public final class RedisRepositoryConfig<T, TID> {
     private final FieldExtractor<T> fieldExtractor;
     private final FieldValueSerializer fieldValueSerializer;
     private final EntityBuilder<T> entityBuilder;
-    private final String hashKey;
-    // new provider strategy for computing per-entity key prefix
+
+    // 最终 zset key
+    private final String resolvedZSetKey;
+    // 最终 hash key 前缀
+    private final String resolvedHashKeyPrefix;
+
+    // --- 必要策略/模板字段 ---
+    // 前缀生成策略
     private final KeyPrefixProvider keyPrefixProvider;
+    // 默认 zset 名称
     private final String defaultZSetName;
 
     private RedisRepositoryConfig(Builder<T, TID> b) {
         this.defaultTtl = b.defaultTtl;
         this.batchSize = b.batchSize;
-        this.keyPrefix = b.keyPrefix;
-        this.zSetKey = b.zSetKey;
         this.serializer = b.serializer;
         this.deserializer = b.deserializer;
         this.idExtractor = b.idExtractor;
@@ -53,17 +57,10 @@ public final class RedisRepositoryConfig<T, TID> {
         this.fieldExtractor = b.fieldExtractor;
         this.fieldValueSerializer = b.fieldValueSerializer;
         this.entityBuilder = b.entityBuilder;
-        this.hashKey = b.hashKey;
+        this.resolvedZSetKey = b.resolvedZsetKey;
+        this.resolvedHashKeyPrefix = b.resolvedHashKeyPrefix;
         this.keyPrefixProvider = b.keyPrefixProvider;
         this.defaultZSetName = b.defaultZsetName;
-    }
-
-    /**
-     * Default ZSet name used when no explicit zSetKey is provided.
-     */
-    @SuppressWarnings("unused")
-    public String getDefaultZSetName() {
-        return this.defaultZSetName;
     }
 
     /**
@@ -101,8 +98,6 @@ public final class RedisRepositoryConfig<T, TID> {
     public static class Builder<T, TID> {
         private long defaultTtl = 60 * 60; // 1 hour
         private int batchSize = 100;
-        private String keyPrefix = "entity:";
-        private String zSetKey;
         private Serializer<T> serializer;
         private Deserializer<T> deserializer;
         private IdExtractor<T, TID> idExtractor;
@@ -112,8 +107,8 @@ public final class RedisRepositoryConfig<T, TID> {
         private FieldExtractor<T> fieldExtractor;
         private FieldValueSerializer fieldValueSerializer;
         private EntityBuilder<T> entityBuilder;
-        private String hashKey;
-        // default provider: append entity simple name to global prefix, safe fallbacks
+        private String resolvedZsetKey;
+        private String resolvedHashKeyPrefix;
         private KeyPrefixProvider keyPrefixProvider = (clazz, globalPrefix) -> {
             String gp = globalPrefix == null ? "" : globalPrefix;
             final String entityName;
@@ -162,33 +157,6 @@ public final class RedisRepositoryConfig<T, TID> {
                 throw new IllegalArgumentException("batchSize must be > 0");
             }
             this.batchSize = size;
-            return this;
-        }
-
-        /**
-         * 设置 setex key 前缀，不能为空。
-         *
-         * @param prefix 前缀
-         * @return builder
-         */
-        @SuppressWarnings("UnusedReturnValue")
-        public Builder<T, TID> keyPrefix(String prefix) {
-            this.keyPrefix = Objects.requireNonNull(prefix, "keyPrefix must not be null");
-            return this;
-        }
-
-        /**
-         * 指定 ZSet 的 key（必需）。
-         *
-         * @param zSetKey zset key
-         * @return builder
-         */
-        @SuppressWarnings("UnusedReturnValue")
-        public Builder<T, TID> zSetKey(String zSetKey) {
-            this.zSetKey = Objects.requireNonNull(zSetKey, "zSetKey must not be null");
-            if (zSetKey.isEmpty()) {
-                throw new IllegalArgumentException("zSetKey must not be empty");
-            }
             return this;
         }
 
@@ -301,16 +269,6 @@ public final class RedisRepositoryConfig<T, TID> {
             return this;
         }
 
-        /**
-         * 指定用于存放实体 payload 的单个 HASH 的 key（必需）。
-         * @param hashKey hash key
-         * @return builder
-         */
-        @SuppressWarnings("UnusedReturnValue")
-        public Builder<T, TID> hashKey(String hashKey) {
-            this.hashKey = Objects.requireNonNull(hashKey, "hashKey must not be null");
-            return this;
-        }
 
         /**
          * 指定自定义 KeyPrefixProvider，用于在构建 repository 时生成 per-entity setex key prefix。
@@ -340,7 +298,6 @@ public final class RedisRepositoryConfig<T, TID> {
          * @return 不可变配置实例
          */
         public RedisRepositoryConfig<T, TID> build() {
-             Objects.requireNonNull(zSetKey, "zSetKey must be provided");
              Objects.requireNonNull(serializer, "serializer must be provided");
              Objects.requireNonNull(deserializer, "deserializer must be provided");
              Objects.requireNonNull(idExtractor, "idExtractor must be provided");
@@ -355,5 +312,14 @@ public final class RedisRepositoryConfig<T, TID> {
              }
              return new RedisRepositoryConfig<>(this);
          }
+
+        public Builder<T, TID> resolvedZsetKey(String zSetKey) {
+            this.resolvedZsetKey = zSetKey;
+            return this;
+        }
+        public Builder<T, TID> resolvedHashKeyPrefix(String hashKeyPrefix) {
+            this.resolvedHashKeyPrefix = hashKeyPrefix;
+            return this;
+        }
      }
  }

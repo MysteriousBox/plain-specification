@@ -35,7 +35,7 @@ class KeyNamingUtilsTest {
         assertEquals("foo:index", KeyNamingUtils.computeZsetKey("foo:", null, "index"));
         assertEquals("foo:bar", KeyNamingUtils.computeZsetKey("foo:", "bar", "index"));
         assertEquals("foo:bar", KeyNamingUtils.computeZsetKey("foo:", ":bar", "index"));
-        assertEquals("index", KeyNamingUtils.computeZsetKey("", null, "index"));
-        assertEquals("bar", KeyNamingUtils.computeZsetKey("", "bar", "index"));
+        assertThrows(IllegalArgumentException.class, () -> KeyNamingUtils.computeZsetKey("", null, "index"));
+        assertThrows(IllegalArgumentException.class, () -> KeyNamingUtils.computeZsetKey("", "bar", "index"));
     }
 }

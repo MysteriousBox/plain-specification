@@ -34,6 +34,8 @@
         <plain-specification-executor-mybatisplus.version>1.0-SNAPSHOT</plain-specification-executor-mybatisplus.version>
         <spring-boot-starter-data-redis.version>2.7.18</spring-boot-starter-data-redis.version>
         <json.version>20231013</json.version>
+        <!-- Jackson java.time module version managed here -->
+        <jackson-datatype-jsr310.version>2.13.5</jackson-datatype-jsr310.version>
     </properties>
 
     <dependencyManagement>
@@ -145,6 +147,12 @@
                 <groupId>org.json</groupId>
                 <artifactId>json</artifactId>
                 <version>${json.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${jackson-datatype-jsr310.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

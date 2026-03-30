@@ -11,14 +11,21 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 /**
  * Redis 通用仓储抽象基类（ZSET + per-entity HASH 存储）。
  *
+ * <p>设计模式说明：
+ * <ul>
+ *   <li>本类<strong>只依赖最终组装好的配置对象</strong>（{@link RedisRepositoryConfig}），不负责任何配置组装、计算或合并。</li>
+ *   <li>所有配置组装、合并、覆盖逻辑应在外部（如 Resolver/Factory）完成，传入本类的 config 必须是可直接使用的最终配置。</li>
+ *   <li>本类专注于仓储操作，所有配置项均通过 config 字段只读获取。</li>
+ * </ul>
  * <p>存储架构：
  * <ul>
- *   <li>索引：使用 ZSET（配置项 {@link RedisRepositoryConfig#getZSetKey()}）存储 id 与 score，用于有序/分页扫描；</li>
- *   <li>实体：每个实体占用一个独立的 HASH，key = {@link RedisRepositoryConfig#getKeyPrefix()} + id，
+ *   <li>索引：使用 ZSET（配置项 {@link RedisRepositoryConfig#getResolvedZSetKey()}）存储 id 与 score，用于有序/分页扫描；</li>
+ *   <li>实体：每个实体占用一个独立的 HASH，key = {@link RedisRepositoryConfig#getResolvedHashKeyPrefix()} + id，
  *       HASH 的 field 对应实体属性（由 {@link FieldExtractor} 提取）；</li>
  * </ul>
  * 此类保证写入索引与实体的原子性（通过 Lua 脚本完成 ZADD + HSET(s) + EXPIRE）。
@@ -32,6 +39,7 @@ import java.util.stream.Collectors;
  * @since 1.0
  */
 public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, TID> {
+    private static final Logger logger = Logger.getLogger(RedisBaseRepository.class.getName());
 
     private final StringRedisTemplate redisTemplate;
     private final RedisRepositoryConfig<T, TID> config;
@@ -129,13 +137,16 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalArgumentException("entity to save must not be null");
         }
 
-        final String zKey = zSetKey();
+        final String zKey = getConfig().getResolvedZSetKey();
+        if (zKey == null || zKey.isEmpty()) {
+            throw new IllegalStateException("resolvedZSetKey in config must not be null or empty");
+        }
         final double score = getScore(entity);
         final String id = Objects.requireNonNull(getId(entity), "id extracted from entity must not be null").toString();
         final Long entityTtl = getTtl(entity);
-        final long ttl = entityTtl == null ? config.getDefaultTtl() : entityTtl;
+        final long ttl = entityTtl == null ? getConfig().getDefaultTtl() : entityTtl;
 
-        final FieldExtractor<T> fe = config.getFieldExtractor();
+        final FieldExtractor<T> fe = getConfig().getFieldExtractor();
         if (fe == null) {
             throw new IllegalStateException("FieldExtractor must be configured for per-entity HASH storage");
         }
@@ -145,7 +156,11 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalStateException("FieldExtractor returned empty field map");
         }
 
+
         final String entityKey = getKey(id);
+        if (entityKey == null || entityKey.isEmpty()) {
+            throw new IllegalStateException("entityKey must not be null or empty");
+        }
         final List<String> argsList = new ArrayList<>(2 + fields.size() * 2 + 1);
         argsList.add(String.valueOf(score));
         argsList.add(id);
@@ -273,7 +288,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
         if (ids == null) {
             throw new IllegalArgumentException("ids to deleteByIds must not be null");
         }
-        final String zKey = zSetKey();
+        final String zKey = getConfig().getResolvedZSetKey();
         final List<String> keys = new ArrayList<>();
         keys.add(zKey);
         final List<String> idStrings = new ArrayList<>();
@@ -375,21 +390,11 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
         }
         final String idStr = String.valueOf(id);
         final String entityKey = getKey(idStr);
-
-        final Map<Object, Object> fields = redisTemplate.opsForHash().entries(entityKey);
-        if (fields.isEmpty()) {
-            return null;
-        }
-
-        final EntityBuilder<T> builder = config.getEntityBuilder();
+        final EntityBuilder<T> builder = getConfig().getEntityBuilder();
         if (builder == null) {
             throw new IllegalStateException("EntityBuilder must be configured to read from per-entity HASH");
         }
-        try {
-            return builder.buildEntity(fields);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to build entity from hash fields for id: " + id, e);
-        }
+        return mapHashToEntity(entityKey, builder);
     }
 
     /**
@@ -499,17 +504,36 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
         return list;
     }
 
+    /**
+     * 根据 redis HASH key 获取 fields 并转换为实体。
+     * @param redisKey HASH key
+     * @param builder  实体构建器
+     * @return 实体对象或 null
+     */
+    private T mapHashToEntity(String redisKey, EntityBuilder<T> builder) {
+        Map<Object, Object> fields = redisTemplate.opsForHash().entries(redisKey);
+        if (fields.isEmpty()) {
+            return null;
+        }
+        try {
+            return builder.buildEntity(fields);
+        } catch (Exception ex) {
+            logger.warning("Failed to build entity from hash fields for key: " + redisKey + ", " + ex.getMessage());
+            return null;
+        }
+    }
+
     private T findOneWithBatch(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to findOneWithBatch must not be null");
         }
-        if (config.getBatchSize() <= 0) {
+        if (getConfig().getBatchSize() <= 0) {
             throw new IllegalStateException("batchSize must be > 0");
         }
 
         long start = 0L;
-        long end = config.getBatchSize() - 1L;
-        final String zKey = zSetKey();
+        long end = getConfig().getBatchSize() - 1L;
+        final String zKey = getConfig().getResolvedZSetKey();
 
         while (true) {
             final Set<?> ids = redisTemplate.opsForZSet().range(zKey, start, end);
@@ -519,7 +543,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
 
             final List<String> keyList = ids.stream().map(item -> getKey(item.toString())).collect(Collectors.toList());
             final List<Map<Object, Object>> hashes = multiGetHashes(keyList);
-            final EntityBuilder<T> builder = config.getEntityBuilder();
+            final EntityBuilder<T> builder = getConfig().getEntityBuilder();
 
             for (Map<Object, Object> fields : hashes) {
                 if (fields == null) {
@@ -530,13 +554,13 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
                     if (t != null && specification.isSatisfiedBy(t)) {
                         return t;
                     }
-                } catch (Exception ignored) {
-                    // ignore single-entity failures and continue scanning
+                } catch (Exception ex) {
+                    logger.warning("Failed to build entity in findOneWithBatch: " + ex.getMessage());
                 }
             }
 
-            start += config.getBatchSize();
-            end += config.getBatchSize();
+            start += getConfig().getBatchSize();
+            end += getConfig().getBatchSize();
         }
     }
 
@@ -544,16 +568,16 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
         if (specification == null) {
             throw new IllegalArgumentException("specification to findRangeWithBatch must not be null");
         }
-        if (config.getBatchSize() <= 0) {
+        if (getConfig().getBatchSize() <= 0) {
             throw new IllegalStateException("batchSize must be > 0");
         }
 
         final List<T> results = new ArrayList<>();
         long currentStart = start;
-        final String zKey = zSetKey();
+        final String zKey = getConfig().getResolvedZSetKey();
 
         while (true) {
-            final long fetchEnd = (end == -1) ? (currentStart + config.getBatchSize() - 1) : Math.min(end, currentStart + config.getBatchSize() - 1);
+            final long fetchEnd = (end == -1) ? (currentStart + getConfig().getBatchSize() - 1) : Math.min(end, currentStart + getConfig().getBatchSize() - 1);
             final Set<?> ids = redisTemplate.opsForZSet().range(zKey, currentStart, fetchEnd);
             if (ids == null || ids.isEmpty()) {
                 break;
@@ -561,7 +585,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
 
             final List<String> keyList = ids.stream().map(item -> getKey(item.toString())).collect(Collectors.toList());
             final List<Map<Object, Object>> hashes = multiGetHashes(keyList);
-            final EntityBuilder<T> builder = config.getEntityBuilder();
+            final EntityBuilder<T> builder = getConfig().getEntityBuilder();
 
             for (Map<Object, Object> fields : hashes) {
                 if (fields == null) {
@@ -572,16 +596,16 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
                     if (t != null && specification.isSatisfiedBy(t)) {
                         results.add(t);
                     }
-                } catch (Exception ignored) {
-                    // ignore and continue
+                } catch (Exception ex) {
+                    logger.warning("Failed to build entity in findRangeWithBatch: " + ex.getMessage());
                 }
             }
 
             if (end != -1 && fetchEnd >= end) {
                 break;
             }
-            currentStart += config.getBatchSize();
-            if (end == -1 && ids.size() < config.getBatchSize()) {
+            currentStart += getConfig().getBatchSize();
+            if (end == -1 && ids.size() < getConfig().getBatchSize()) {
                 break;
             }
         }
@@ -618,13 +642,13 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
         if (specification == null) {
             throw new IllegalArgumentException("specification to count must not be null");
         }
-        if (config.getBatchSize() <= 0) {
+        if (getConfig().getBatchSize() <= 0) {
             throw new IllegalStateException("batchSize must be > 0");
         }
 
-        final String zKey = zSetKey();
+        final String zKey = getConfig().getResolvedZSetKey();
         long start = 0L;
-        long end = config.getBatchSize() - 1L;
+        long end = getConfig().getBatchSize() - 1L;
         long result = 0L;
 
         while (true) {
@@ -632,29 +656,19 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
             if (ids == null || ids.isEmpty()) {
                 return result;
             }
-
             final List<String> keyList = ids.stream().map(item -> getKey(item.toString())).collect(Collectors.toList());
-            final List<Map<Object, Object>> hashes = multiGetHashes(keyList);
-            final EntityBuilder<T> builder = config.getEntityBuilder();
+            final EntityBuilder<T> builder = getConfig().getEntityBuilder();
             long matched = 0L;
-
-            for (Map<Object, Object> fields : hashes) {
-                if (fields == null) {
-                    continue;
-                }
-                try {
-                    final T t = builder.buildEntity(fields);
-                    if (t != null && specification.isSatisfiedBy(t)) {
-                        matched++;
-                    }
-                } catch (Exception ignored) {
-                    // ignore entity-specific failure
+            for (String key : keyList) {
+                T t = mapHashToEntity(key, builder);
+                if (t != null && specification.isSatisfiedBy(t)) {
+                    matched++;
                 }
             }
 
             result += matched;
-            start += config.getBatchSize();
-            end += config.getBatchSize();
+            start += getConfig().getBatchSize();
+            end += getConfig().getBatchSize();
         }
     }
 
@@ -698,7 +712,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalArgumentException("Page size must be greater than 0, actual: " + pageQuery.getPageSize());
         }
 
-        final String key = zSetKey();
+        final String key = config.getResolvedZSetKey();
         final long start = (long) (pageQuery.getPage() - 1) * pageQuery.getPageSize();
         final long end = start + pageQuery.getPageSize() - 1;
         final Collection<T> entities = findRangeWithBatch(specification, start, end);
@@ -713,7 +727,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
     @SuppressWarnings("unused")
     protected final String serialize(T entity) {
         try {
-            return config.getSerializer().serialize(entity);
+            return getConfig().getSerializer().serialize(entity);
         } catch (Exception e) {
             throw new IllegalStateException("Serialization failed", e);
         }
@@ -722,7 +736,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
     @SuppressWarnings("unused")
     protected final T deserialize(String s) {
         try {
-            return config.getDeserializer().deserialize(s);
+            return getConfig().getDeserializer().deserialize(s);
         } catch (Exception e) {
             throw new IllegalStateException("Deserialization failed", e);
         }
@@ -736,9 +750,9 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     protected final String zSetKey() {
-        String k = config.getZSetKey();
+        String k = getConfig().getResolvedZSetKey();
         if (k == null || k.isEmpty()) {
-            throw new IllegalStateException("zSetKey must be configured");
+            throw new IllegalStateException("resolvedZSetKey must be configured and not empty");
         }
         return k;
     }
@@ -754,7 +768,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      */
     protected final TID getId(T entity) {
         try {
-            return config.getIdExtractor().getId(entity);
+            return getConfig().getIdExtractor().getId(entity);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to extract id", e);
         }
@@ -768,7 +782,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     protected final double getScore(T entity) {
-        return config.getScoreProvider().getScore(entity);
+        return getConfig().getScoreProvider().getScore(entity);
     }
 
     /**
@@ -779,7 +793,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     protected final Long getTtl(T entity) {
-        return config.getTtlProvider().getTtl(entity);
+        return getConfig().getTtlProvider().getTtl(entity);
     }
 
     /**
@@ -789,7 +803,7 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     private Executor executor() {
-        Executor exe = config.getAsyncExecutor();
+        Executor exe = getConfig().getAsyncExecutor();
         return exe != null ? exe : ForkJoinPool.commonPool();
     }
 
@@ -801,8 +815,10 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     protected String getKey(String id) {
-
-        String prefix = KeyNamingUtils.computePrefix(config.getKeyPrefixProvider(), null, config.getKeyPrefix());
+        String prefix = getConfig().getResolvedHashKeyPrefix();
+        if (prefix == null || prefix.isEmpty()) {
+            throw new IllegalStateException("resolvedHashKeyPrefix in config must not be null or empty");
+        }
         return prefix + id;
     }
 
@@ -814,23 +830,37 @@ public abstract class RedisBaseRepository<T, TID> implements IBaseRepository<T, 
             return String.valueOf(value);
         }
         // Prefer a configured FieldValueSerializer if provided
-        final FieldValueSerializer fvs = config.getFieldValueSerializer();
+        final FieldValueSerializer fvs = getConfig().getFieldValueSerializer();
         if (fvs != null) {
             try {
                 String s = fvs.serialize(value);
                 if (s != null) {
                     return s;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                logger.warning("Failed to serialize field value with FieldValueSerializer: " + ex.getMessage());
                 // fallback to default JsonUtil below
             }
         }
         try {
             return JsonUtil.serialize(value);
         } catch (Exception ex) {
+            logger.warning("Failed to serialize field value with JsonUtil: " + ex.getMessage());
             // Last resort: use toString()
             return String.valueOf(value);
         }
+    }
+
+    /**
+     * 统计所有实体数量（无条件）。
+     *
+     * @return 当前仓储所有实体数量
+     * @author Jayden.Liang
+     * @since 1.0
+     */
+    public long count() {
+        Long total = redisTemplate.opsForZSet().size(zSetKey());
+        return total == null ? 0L : total;
     }
 }
 
