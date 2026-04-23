@@ -5,6 +5,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 /**
  * 表达式 接口
  * @param <T> 类型
+ * @author Jayden.Liang
  */
 public interface IExpression<T> {
 

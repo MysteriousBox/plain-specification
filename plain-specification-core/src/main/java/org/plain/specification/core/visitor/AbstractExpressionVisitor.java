@@ -4,6 +4,13 @@ import org.plain.specification.core.expression.*;
 
 import java.util.Comparator;
 
+/**
+ * Class AbstractExpressionVisitor.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisitor<T,R> {
 
     @Override

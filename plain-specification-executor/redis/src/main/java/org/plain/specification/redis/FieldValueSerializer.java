@@ -6,6 +6,11 @@ package org.plain.specification.redis;
  *
  * 实现类应保证序列化与反序列化（在 EntityBuilder 中）的一致性。
  */
+/**
+ * Interface FieldValueSerializer.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface FieldValueSerializer {
     String serialize(Object value);

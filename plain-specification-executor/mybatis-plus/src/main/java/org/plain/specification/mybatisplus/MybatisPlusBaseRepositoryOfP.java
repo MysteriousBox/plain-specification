@@ -30,6 +30,7 @@ import static org.springframework.transaction.annotation.Propagation.REQUIRES_NE
  * Mybatis plus 基础 repository
  * 实现了常用的 数据库操作方法 保存、更新、删除等。
  * @param <T>
+ * @author Jayden.Liang
  */
 @Slf4j
 public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable> implements IBaseRepository<T,TID> {
@@ -75,7 +76,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities) {
         return CompletableFuture.supplyAsync(()->{
             Collection<P> poList = converter.convert(entities);
@@ -105,7 +106,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> updateRangeAsync(Collection<T> entities) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -148,7 +149,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(Collection<T> entities) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -162,7 +163,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
         return CompletableFuture.runAsync(()->{
             QueryWrapper<P> queryWrapper = compileToPo(specification);

@@ -1,5 +1,12 @@
 package org.plain.specification.mybatisplus.config;
 
+/**
+ * Interface AsyncConstant.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public interface AsyncConstant {
 
     String THREAD_POOL_TASK_EXECUTOR_NAME = "taskExecutor";

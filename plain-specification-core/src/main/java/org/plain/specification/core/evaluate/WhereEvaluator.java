@@ -7,6 +7,13 @@ import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
+/**
+ * Class WhereEvaluator.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class WhereEvaluator implements IEvaluator{
 
     public static final WhereEvaluator INSTANCE = new WhereEvaluator();

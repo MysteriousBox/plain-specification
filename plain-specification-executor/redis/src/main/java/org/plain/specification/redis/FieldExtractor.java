@@ -7,6 +7,11 @@ import java.util.Map;
  *
  * @param <T> 实体类型
  */
+/**
+ * Interface FieldExtractor.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface FieldExtractor<T> {
     Map<String, Object> extractFields(T entity);

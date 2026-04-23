@@ -7,7 +7,6 @@ import org.plain.specification.core.descriptor.IExpressionDescriptor;
 import org.plain.specification.core.evaluate.ISpecificationEvaluator;
 import org.plain.specification.core.evaluate.InMemorySpecificationEvaluator;
 import org.plain.specification.core.expression.OrderExpressionInfo;
-import org.plain.specification.core.expression.WhereExpressionInfo;
 import org.plain.specification.core.validator.ISpecificationValidator;
 import org.plain.specification.core.validator.SpecificationValidator;
 import org.plain.specification.core.visitor.IExpressionVisitor;
@@ -18,19 +17,24 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Class Specification.
+ *
+ * @author Jayden.Liang
+ */
 public class Specification<T> implements ISpecification<T>{
 
-    private final static int DEFAULT_CAPACITY_WHERE = 2;
+    private static final int DEFAULT_CAPACITY_WHERE = 2;
 
     private final ISpecificationBuilder<T> query= new SpecificationBuilder<>(this);
 
-    private final ISpecificationValidator validator = SpecificationValidator.DEFAULT;
+    private static final ISpecificationValidator validator = SpecificationValidator.DEFAULT;
 
     private Function<Collection<T>,Collection<T>> postProcessingAction;
 
     private ISpecificationEvaluator evaluator = InMemorySpecificationEvaluator.DEFAULT;
 
-    private static final ThreadLocal<Boolean>  IsChainDiscarded = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Boolean> IS_CHAIN_DISCARDED = ThreadLocal.withInitial(() -> false);
 
     protected void setEvaluator(ISpecificationEvaluator evaluator) {
         this.evaluator = evaluator;
@@ -43,18 +47,9 @@ public class Specification<T> implements ISpecification<T>{
         return validator;
     }
 
-    private List<WhereExpressionInfo<T>> whereExpressions;
-
     private List<IExpressionDescriptor<T>> whereDescriptors;
 
     private List<OrderExpressionInfo<T>> orderExpressions;
-
-//    public void add(WhereExpressionInfo<T> whereExpressionInfo) {
-//        if (whereExpressions == null){
-//            whereExpressions = new ArrayList<>(DEFAULT_CAPACITY_WHERE);
-//        }
-//        whereExpressions.add(whereExpressionInfo);
-//    }
 
     public void add(IExpressionDescriptor<T> whereDescriptor) {
         if (whereDescriptors == null){
@@ -111,15 +106,15 @@ public class Specification<T> implements ISpecification<T>{
     }
 
     public static void setIsChainDiscarded(Boolean isChainDiscarded) {
-        IsChainDiscarded.set(isChainDiscarded);
+        IS_CHAIN_DISCARDED.set(isChainDiscarded);
     }
 
     public static Boolean getIsChainDiscarded() {
-        return IsChainDiscarded.get();
+        return IS_CHAIN_DISCARDED.get();
     }
 
     public static void clearIsChainDiscarded() {
-        IsChainDiscarded.remove();
+        IS_CHAIN_DISCARDED.remove();
     }
 
 

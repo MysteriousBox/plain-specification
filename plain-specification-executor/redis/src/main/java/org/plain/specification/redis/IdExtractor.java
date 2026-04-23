@@ -8,6 +8,11 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Interface IdExtractor.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface IdExtractor<T, TID> {
     TID getId(T entity);

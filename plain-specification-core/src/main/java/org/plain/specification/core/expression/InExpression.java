@@ -7,14 +7,13 @@ import java.util.Collection;
 
 /**
  * IN 表达式
- * @author Hugh
+ * @author Jayden.Liang
  */
 @Getter
 public class InExpression <T,V extends Comparable<V>> implements IExpression<T>{
 
     private final SFunction<T, V> left;
     private final Collection<V> right;
-    private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.IN;
 
     public InExpression(SFunction<T, V> left, Collection<V> right) {
         this.left = left;

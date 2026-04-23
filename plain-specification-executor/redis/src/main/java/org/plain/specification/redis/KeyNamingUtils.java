@@ -8,10 +8,12 @@ import java.util.Objects;
  * Encapsulates naming rules so they are consistent and testable across the codebase.
  * </p>
  *
- * @author Plain
+ * @author Jayden.Liang
  * @since 1.0
  */
 public final class KeyNamingUtils {
+
+    private static final String SEPARATOR = ":";
 
     private KeyNamingUtils() {
         // utility
@@ -42,11 +44,11 @@ public final class KeyNamingUtils {
         StringBuilder sb = new StringBuilder();
         if (!isNullOrEmpty(gp)) {
             sb.append(gp);
-            if (!gp.endsWith(":")) {
-                sb.append(":");
+            if (!gp.endsWith(SEPARATOR)) {
+                sb.append(SEPARATOR);
             }
         }
-        sb.append(entityName).append(":");
+        sb.append(entityName).append(SEPARATOR);
         return sb.toString();
     }
 
@@ -74,14 +76,19 @@ public final class KeyNamingUtils {
         if (defaultName.isEmpty()) {
             throw new IllegalArgumentException("defaultName must not be empty");
         }
-        final String p = prefix.endsWith(":") ? prefix : prefix + ":";
+        final String p = prefix.endsWith(SEPARATOR) ? prefix : prefix + SEPARATOR;
         if (isNullOrEmpty(zSetKey)) {
             return p + defaultName;
         }
-        return p + (zSetKey.startsWith(":") ? zSetKey.substring(1) : zSetKey);
+        return p + (zSetKey.startsWith(SEPARATOR) ? zSetKey.substring(1) : zSetKey);
     }
 
-    // Helper: get entity name
+    /**
+     * Resolve the entity name from a class reference.
+     *
+     * @param entityClass entity class or null
+     * @return simple entity name or fallback name when class is null
+     */
     private static String getEntityName(Class<?> entityClass) {
         if (entityClass == null) {
             return "Entity";
@@ -90,12 +97,22 @@ public final class KeyNamingUtils {
         return simple.isEmpty() ? entityClass.getName().replace('.', '_') : simple;
     }
 
-    // Helper: null to empty string
+    /**
+     * Convert null to empty string.
+     *
+     * @param s candidate string
+     * @return empty string when null, otherwise the original string
+     */
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
 
-    // Helper: is null or empty
+    /**
+     * Determine whether a string is null or empty.
+     *
+     * @param s string to test
+     * @return true when string is null or empty
+     */
     private static boolean isNullOrEmpty(String s) {
         return s == null || s.isEmpty();
     }

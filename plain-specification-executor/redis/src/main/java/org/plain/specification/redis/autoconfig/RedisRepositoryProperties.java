@@ -17,6 +17,11 @@ import javax.validation.constraints.NotBlank;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Class RedisRepositoryProperties.
+ *
+ * @author Jayden.Liang
+ */
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "plain.redis.repo")

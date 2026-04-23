@@ -6,11 +6,17 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.Collection;
 
 @Getter
+
+/**
+ * Class NotInExpression.
+ *
+ * @author Jayden.Liang
+ */
+
 public class NotInExpression <T,V extends Comparable<V>> implements IExpression<T>{
 
     private final SFunction<T, V> left;
     private final Collection<V> right;
-    private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.NOT_IN;
 
     public NotInExpression(SFunction<T, V> left, Collection<V> right) {
         this.left = left;

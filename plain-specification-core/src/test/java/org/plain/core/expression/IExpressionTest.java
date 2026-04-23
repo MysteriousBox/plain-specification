@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.plain.specification.core.expression.*;
 import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
-
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -115,9 +114,10 @@ public class IExpressionTest {
                         )
                 )
         );
-
-
-
+        PredicateExpressionVisitor<TestEntity> visitor = new PredicateExpressionVisitor<>();
+        Predicate<TestEntity> predicate = iExpression.accept(visitor);
+        assertTrue(predicate.test(new TestEntity(null, 20)));
+        assertFalse(predicate.test(new TestEntity(null, 10)));
     }
 
 }

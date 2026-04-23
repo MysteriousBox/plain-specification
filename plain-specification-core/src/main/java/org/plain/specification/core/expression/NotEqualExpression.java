@@ -5,7 +5,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * 不等于表达式
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T>
  * @param <V>
  */

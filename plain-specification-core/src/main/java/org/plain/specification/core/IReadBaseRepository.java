@@ -1,6 +1,5 @@
 package org.plain.specification.core;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 

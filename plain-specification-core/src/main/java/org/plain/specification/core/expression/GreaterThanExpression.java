@@ -5,7 +5,12 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * 大于号 表达式
- * @author Hugh
+ * @author Jayden.Liang
+ */
+/**
+ * Class GreaterThanExpression.
+ *
+ * @author Jayden.Liang
  */
 @Getter
 public class GreaterThanExpression<T,V extends Comparable<V>> extends BinaryExpression<T, V> {

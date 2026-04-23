@@ -20,11 +20,19 @@ public class RedisRepositoryConfigResolver {
 
     private final RedisRepositoryConfig<Object, Object> globalConfig;
 
-    // 缓存 globalConfig 相关的 prefix 计算参数，减少重复访问
+    /**
+     * Provider used to compute key prefixes from the global Redis repository configuration.
+     */
     private final RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider;
+
+    /**
+     * Default ZSet name supplied by the global Redis repository configuration.
+     */
     private final String defaultZsetName;
 
-    // outer map keyed by entity Class; inner map keyed by fullZsetKey
+    /**
+     * Cache keyed by entity class and full ZSet key for resolved configuration.
+     */
     private final ConcurrentMap<Class<?>, ConcurrentMap<String, RedisRepositoryConfig<?, ?>>> cache = new ConcurrentHashMap<>();
 
     public RedisRepositoryConfigResolver(RedisRepositoryConfig<Object, Object> globalConfig) {
@@ -33,8 +41,8 @@ public class RedisRepositoryConfigResolver {
         this.defaultZsetName = globalConfig.getDefaultZSetName();
     }
 
-    public <T, TID> RedisRepositoryConfig<T, TID> resolve(Class<T> entityClass, String zSetKey,
-                                                          @Nullable RedisRepositoryConfig<T, TID> overrides) {
+    public <T, I> RedisRepositoryConfig<T, I> resolve(Class<T> entityClass, String zSetKey,
+                                                          @Nullable RedisRepositoryConfig<T, I> overrides) {
         Objects.requireNonNull(entityClass, "entityClass must not be null");
 
         // compute prefix and full zset key up front so cache key matches built config
@@ -43,7 +51,7 @@ public class RedisRepositoryConfigResolver {
 
         if (overrides == null) {
             // get or create per-class inner map
-            ConcurrentMap<String, RedisRepositoryConfig<?, ?>> inner = cache.computeIfAbsent(entityClass, c -> new ConcurrentHashMap<>());
+            ConcurrentMap<String, RedisRepositoryConfig<?, ?>> inner = cache.computeIfAbsent(entityClass, c -> new ConcurrentHashMap<>(cache.size() / 4));
             // compute once per (entityClass, fullZsetKey)
             RedisRepositoryConfig<?, ?> cached = inner.computeIfAbsent(fullZsetKey, k -> buildConfig(entityClass, zSetKey, null));
             return castConfig(cached);
@@ -56,57 +64,30 @@ public class RedisRepositoryConfigResolver {
     /**
      * Convenience overload: resolve config for an entity using default zSet key and global settings.
      */
-    public <T, TID> RedisRepositoryConfig<T, TID> resolve(Class<T> entityClass) {
+    public <T, I> RedisRepositoryConfig<T, I> resolve(Class<T> entityClass) {
         return resolve(entityClass, null, null);
     }
 
-    private <T, TID> RedisRepositoryConfig<T, TID> buildConfig(Class<T> entityClass, String zSetKey,
-                                                               @Nullable RedisRepositoryConfig<T, TID> overrides) {
-        // compute resolved values
+    private <T, I> RedisRepositoryConfig<T, I> buildConfig(Class<T> entityClass, String zSetKey,
+                                                               @Nullable RedisRepositoryConfig<T, I> overrides) {
         String resolvedKeyPrefix = KeyNamingUtils.computePrefix(keyPrefixProvider, entityClass, null);
         String resolvedZsetKey = KeyNamingUtils.computeZsetKey(resolvedKeyPrefix, zSetKey, defaultZsetName);
 
-        RedisRepositoryConfig.Builder<T, TID> b = new RedisRepositoryConfig.Builder<>();
+        RedisRepositoryConfig.Builder<T, I> b = new RedisRepositoryConfig.Builder<>();
+        RedisRepositoryConfig<?, ?> effectiveConfig = overrides != null ? overrides : globalConfig;
 
-        // choose between override (if provided) and global config
-        long defaultTtl = overrides != null ? overrides.getDefaultTtl() : globalConfig.getDefaultTtl();
-        int batchSize = overrides != null ? overrides.getBatchSize() : globalConfig.getBatchSize();
+        long defaultTtl = effectiveConfig.getDefaultTtl();
+        int batchSize = effectiveConfig.getBatchSize();
 
-        Serializer<T> serializer = overrides != null && overrides.getSerializer() != null
-                ? overrides.getSerializer()
-                : castSerializer(globalConfig.getSerializer());
-
-        Deserializer<T> deserializer = overrides != null && overrides.getDeserializer() != null
-                ? overrides.getDeserializer()
-                : DefaultStrategies.jacksonDeserializer(entityClass);
-
-        IdExtractor<T, TID> idExtractor = overrides != null && overrides.getIdExtractor() != null
-                ? overrides.getIdExtractor()
-                : DefaultStrategies.reflectionIdExtractor(entityClass, null);
-
-        ScoreProvider<T> scoreProvider = overrides != null && overrides.getScoreProvider() != null
-                ? overrides.getScoreProvider()
-                : castScoreProvider(globalConfig.getScoreProvider());
-
-        TtlProvider<T> ttlProvider = overrides != null && overrides.getTtlProvider() != null
-                ? overrides.getTtlProvider()
-                : castTtlProvider(globalConfig.getTtlProvider());
-
-        FieldValueSerializer fieldValueSerializer = overrides != null && overrides.getFieldValueSerializer() != null
-                ? overrides.getFieldValueSerializer()
-                : globalConfig.getFieldValueSerializer();
-
-        FieldExtractor<T> fieldExtractor = overrides != null && overrides.getFieldExtractor() != null
-                ? overrides.getFieldExtractor()
-                : castFieldExtractor(globalConfig.getFieldExtractor());
-
-        EntityBuilder<T> entityBuilder = overrides != null && overrides.getEntityBuilder() != null
-                ? overrides.getEntityBuilder()
-                : castEntityBuilder(globalConfig.getEntityBuilder());
-
-        Executor asyncExecutor = overrides != null && overrides.getAsyncExecutor() != null
-                ? overrides.getAsyncExecutor()
-                : globalConfig.getAsyncExecutor();
+        Serializer<T> serializer = chooseSerializer(overrides);
+        Deserializer<T> deserializer = chooseDeserializer(overrides, entityClass);
+        IdExtractor<T, I> idExtractor = chooseIdExtractor(overrides, entityClass);
+        ScoreProvider<T> scoreProvider = chooseScoreProvider(overrides);
+        TtlProvider<T> ttlProvider = chooseTtlProvider(overrides);
+        FieldValueSerializer fieldValueSerializer = chooseFieldValueSerializer(overrides);
+        FieldExtractor<T> fieldExtractor = chooseFieldExtractor(overrides);
+        EntityBuilder<T> entityBuilder = chooseEntityBuilder(overrides);
+        Executor asyncExecutor = chooseAsyncExecutor(overrides);
 
         b.resolvedZsetKey(resolvedZsetKey)
                 .resolvedHashKeyPrefix(resolvedKeyPrefix)
@@ -127,38 +108,86 @@ public class RedisRepositoryConfigResolver {
         return b.build();
     }
 
+    private <T, I> Serializer<T> chooseSerializer(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getSerializer() != null
+                ? overrides.getSerializer()
+                : castSerializer(globalConfig.getSerializer());
+    }
+
+    private <T, I> Deserializer<T> chooseDeserializer(RedisRepositoryConfig<T, I> overrides, Class<T> entityClass) {
+        return overrides != null && overrides.getDeserializer() != null
+                ? overrides.getDeserializer()
+                : DefaultStrategies.jacksonDeserializer(entityClass);
+    }
+
+    private <T, I> IdExtractor<T, I> chooseIdExtractor(RedisRepositoryConfig<T, I> overrides, Class<T> entityClass) {
+        return overrides != null && overrides.getIdExtractor() != null
+                ? overrides.getIdExtractor()
+                : DefaultStrategies.reflectionIdExtractor(entityClass, null);
+    }
+
+    private <T, I> ScoreProvider<T> chooseScoreProvider(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getScoreProvider() != null
+                ? overrides.getScoreProvider()
+                : castScoreProvider(globalConfig.getScoreProvider());
+    }
+
+    private <T, I> TtlProvider<T> chooseTtlProvider(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getTtlProvider() != null
+                ? overrides.getTtlProvider()
+                : castTtlProvider(globalConfig.getTtlProvider());
+    }
+
+    private <T, I> FieldValueSerializer chooseFieldValueSerializer(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getFieldValueSerializer() != null
+                ? overrides.getFieldValueSerializer()
+                : globalConfig.getFieldValueSerializer();
+    }
+
+    private <T, I> FieldExtractor<T> chooseFieldExtractor(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getFieldExtractor() != null
+                ? overrides.getFieldExtractor()
+                : castFieldExtractor(globalConfig.getFieldExtractor());
+    }
+
+    private <T, I> EntityBuilder<T> chooseEntityBuilder(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getEntityBuilder() != null
+                ? overrides.getEntityBuilder()
+                : castEntityBuilder(globalConfig.getEntityBuilder());
+    }
+
+    private <T, I> Executor chooseAsyncExecutor(RedisRepositoryConfig<T, I> overrides) {
+        return overrides != null && overrides.getAsyncExecutor() != null
+                ? overrides.getAsyncExecutor()
+                : globalConfig.getAsyncExecutor();
+    }
+
     // --- helper cast methods: localize unchecked casts and document why they're safe ---
 
-    @SuppressWarnings("unchecked")
-    private static <T, TID> RedisRepositoryConfig<T, TID> castConfig(RedisRepositoryConfig<?, ?> cfg) {
+    private static <T, I> RedisRepositoryConfig<T, I> castConfig(RedisRepositoryConfig<?, ?> cfg) {
         // The cache is now keyed by entity Class and fullZsetKey. Values stored for a
         // given Class were constructed by buildConfig(entityClass,...), so the runtime
         // type parameters correspond to that entity. Therefore this unchecked cast is
         // safe in the current design; we keep it localized to this helper for auditing.
-        return (RedisRepositoryConfig<T, TID>) cfg;
+        return (RedisRepositoryConfig<T, I>) cfg;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> Serializer<T> castSerializer(Serializer<?> s) {
         return (Serializer<T>) s;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> ScoreProvider<T> castScoreProvider(ScoreProvider<?> p) {
         return (ScoreProvider<T>) p;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> TtlProvider<T> castTtlProvider(TtlProvider<?> p) {
         return (TtlProvider<T>) p;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> FieldExtractor<T> castFieldExtractor(FieldExtractor<?> f) {
         return (FieldExtractor<T>) f;
     }
 
-    @SuppressWarnings("unchecked")
     private static <T> EntityBuilder<T> castEntityBuilder(EntityBuilder<?> b) {
         return (EntityBuilder<T>) b;
     }

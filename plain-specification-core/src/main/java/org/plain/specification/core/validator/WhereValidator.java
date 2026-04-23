@@ -4,6 +4,13 @@ import org.plain.specification.core.ISpecification;
 import org.plain.specification.core.descriptor.IExpressionDescriptor;
 import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
+/**
+ * Class WhereValidator.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class WhereValidator implements IValidator {
 
     private WhereValidator() {

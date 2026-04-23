@@ -5,8 +5,13 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * 等于号 表达式，比较 两边的值是否相等
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T> 实体类型
+ */
+/**
+ * Class EqualExpression.
+ *
+ * @author Jayden.Liang
  */
 @Getter
 public class EqualExpression<T,V extends Comparable<V>> extends BinaryExpression<T, V>{

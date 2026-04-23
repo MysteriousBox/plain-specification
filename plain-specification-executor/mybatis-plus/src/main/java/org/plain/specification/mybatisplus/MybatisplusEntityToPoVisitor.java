@@ -1,16 +1,18 @@
 package org.plain.specification.mybatisplus;
 
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.plain.specification.core.expression.*;
 import org.plain.specification.core.visitor.AbstractExpressionVisitor;
-import org.plain.utils.converter.IConverter;
 
 import java.lang.invoke.SerializedLambda;
 import java.util.Comparator;
 
+/**
+ * Class MybatisplusEntityToPoVisitor.
+ *
+ * @author Jayden.Liang
+ */
 public class MybatisplusEntityToPoVisitor <T,PO> extends AbstractExpressionVisitor<T, QueryWrapper<PO>> {
 
 

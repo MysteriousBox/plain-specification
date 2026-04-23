@@ -5,13 +5,17 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * 或 逻辑运算符表达式
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T>
+ */
+/**
+ * Class OrExpression.
+ *
+ * @author Jayden.Liang
  */
 @Getter
 public class OrExpression <T>  implements IExpression<T> {
     private final IExpression<T> left;
-    private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.OR;
     private final IExpression<T> right;
 
     public OrExpression(IExpression<T> left, IExpression<T> right) {

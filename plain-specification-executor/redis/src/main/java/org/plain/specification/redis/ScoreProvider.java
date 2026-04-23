@@ -7,6 +7,11 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Interface ScoreProvider.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface ScoreProvider<T> {
     double getScore(T entity);

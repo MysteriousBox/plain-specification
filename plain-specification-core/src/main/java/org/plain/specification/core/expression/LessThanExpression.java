@@ -4,7 +4,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * 小于 表达式
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T>
  * @param <V>
  */

@@ -1,19 +1,26 @@
 package org.plain.specification.mybatisplus;
 
 
-import com.baomidou.mybatisplus.core.toolkit.support.IdeaProxyLambdaMeta;
-import com.baomidou.mybatisplus.core.toolkit.support.LambdaMeta;
-import com.baomidou.mybatisplus.core.toolkit.support.ReflectLambdaMeta;
-import com.baomidou.mybatisplus.core.toolkit.support.ShadowLambdaMeta;
 import org.plain.specification.core.expression.SFunction;
 
 import java.io.Serializable;
 
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 
+/**
+ * Class MpFieldNameResolver.
+ *
+ * @author Jayden.Liang
+ */
 public class MpFieldNameResolver {
+    private MpFieldNameResolver() {
+        /* This utility class should not be instantiated */
+    }
+
+
+    private static final String GET_PREFIX = "get";
+    private static final String IS_PREFIX = "is";
 
     public static  <T> String resolve(SFunction<T, ?> func) {
         SerializedLambda lambda = serialize(func);
@@ -23,15 +30,14 @@ public class MpFieldNameResolver {
     public static String resolve(SerializedLambda lambda){
         String methodName = lambda.getImplMethodName();
         // 转换 getter 方法名 -> 属性名
-        if (methodName.startsWith("get")) {
-            methodName = methodName.substring(3);
-        } else if (methodName.startsWith("is")) {
-            methodName = methodName.substring(2);
+        if (methodName.startsWith(GET_PREFIX)) {
+            methodName = methodName.substring(GET_PREFIX.length());
+        } else if (methodName.startsWith(IS_PREFIX)) {
+            methodName = methodName.substring(IS_PREFIX.length());
         }
         return Character.toLowerCase(methodName.charAt(0)) + methodName.substring(1);
     }
 
-    @SuppressWarnings("unchecked")
     public static <T> Class<T> getDomainClass(SerializedLambda lambda) {
         String className = lambda.getImplClass().replace('/', '.');
         try {

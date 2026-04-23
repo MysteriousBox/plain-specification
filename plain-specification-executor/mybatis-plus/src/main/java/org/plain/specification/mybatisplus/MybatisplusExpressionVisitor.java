@@ -7,6 +7,13 @@ import org.plain.specification.core.visitor.AbstractExpressionVisitor;
 
 import java.util.Comparator;
 
+/**
+ * Class MybatisplusExpressionVisitor.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T, QueryWrapper<T>> {
 
 //    private Class<T> entityClass;

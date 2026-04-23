@@ -7,6 +7,13 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 import java.util.Comparator;
 
+/**
+ * Class OrderExpressionInfo.
+ *
+ * @author Jayden.Liang
+ */
+
+
 
 public class OrderExpressionInfo<T> implements IExpressionDescriptor<T> {
 

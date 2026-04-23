@@ -8,6 +8,7 @@ import java.util.function.Predicate;
 /**
  * 内存 表达式访问者
  * @param <T>
+ * @author Jayden.Liang
  */
 public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, Predicate<T>>  {
 

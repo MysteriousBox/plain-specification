@@ -4,10 +4,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -21,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.plain.specification.mybatisplus.MpFieldNameResolver;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
@@ -76,18 +73,6 @@ public class MpSpecificationBuilderTest {
 
     }
 
-    private boolean matchesConditions(Person person, Map<String, Object> whereClause) {
-        // 获取参数键值对（例如：{name=张三, age=18}）
-
-        // 匹配所有条件
-        boolean nameMatch = whereClause.containsKey("name") &&
-                person.getName().equals(whereClause.get("name"));
-        boolean ageMatch = whereClause.containsKey("age") &&
-                person.getAge() == (int) whereClause.get("age");
-
-        return nameMatch && ageMatch;
-    }
-
     @Captor
     ArgumentCaptor<Wrapper<Person>> wrapperCaptor;
     // 测试用例
@@ -95,7 +80,7 @@ public class MpSpecificationBuilderTest {
     public void testFieldConversion() {
 
         // Arrange
-        String nameField = MpFieldNameResolver.resolve(Person::getName); // 应为 "name"
+         // 应为 "name"
 
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(new Person(1L, "张三", 18)));
 
@@ -105,6 +90,8 @@ public class MpSpecificationBuilderTest {
 
         // Assert
         verify(mapper).selectList(wrapperCaptor.capture());
+        assertEquals(1, people.size());
+        assertEquals("张三", people.get(0).getName());
         Wrapper<Person> captured = wrapperCaptor.getValue();
 
         String sqlSegment;

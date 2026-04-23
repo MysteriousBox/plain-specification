@@ -16,33 +16,61 @@ import java.util.concurrent.Executor;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Class RedisRepositoryConfig.
+ *
+ * @author Jayden.Liang
+ */
 @Getter
 @EqualsAndHashCode
 @ToString
 @SuppressWarnings("unused")
 public final class RedisRepositoryConfig<T, TID> {
-    // --- 必要通用配置 ---
+
+    private static final String KEY_SEPARATOR = ":";
+    /** Default TTL in seconds. */
     private final long defaultTtl;
+
+    /** Batch size for bulk operations. */
     private final int batchSize;
+
+    /** Serializer for entity payloads. */
     private final Serializer<T> serializer;
+
+    /** Deserializer for entity payloads. */
     private final Deserializer<T> deserializer;
+
+    /** Extractor used to compute entity IDs. */
     private final IdExtractor<T, TID> idExtractor;
+
+    /** Provider to calculate entity scores. */
     private final ScoreProvider<T> scoreProvider;
+
+    /** Provider to calculate entity TTL. */
     private final TtlProvider<T> ttlProvider;
+
+    /** Executor used for async operations. */
     private final Executor asyncExecutor;
+
+    /** Extractor used to obtain fields for Redis storage. */
     private final FieldExtractor<T> fieldExtractor;
+
+    /** Serializer for individual field values. */
     private final FieldValueSerializer fieldValueSerializer;
+
+    /** Builder for entity instances from stored hash fields. */
     private final EntityBuilder<T> entityBuilder;
 
-    // 最终 zset key
+    /** Computed ZSet key after prefix resolution. */
     private final String resolvedZSetKey;
-    // 最终 hash key 前缀
+
+    /** Computed hash key prefix after prefix resolution. */
     private final String resolvedHashKeyPrefix;
 
-    // --- 必要策略/模板字段 ---
-    // 前缀生成策略
+    /** Strategy for computing key prefixes. */
     private final KeyPrefixProvider keyPrefixProvider;
-    // 默认 zset 名称
+
+    /** Default ZSet name when none is explicitly provided. */
     private final String defaultZSetName;
 
     private RedisRepositoryConfig(Builder<T, TID> b) {
@@ -65,10 +93,17 @@ public final class RedisRepositoryConfig<T, TID> {
 
     /**
      * Key prefix provider strategy: given an entity class and the configured global prefix,
-     * produce the actual per-entity setex prefix (should include trailing separator if desired).
+     * produce the actual per-entity prefix for Redis storage.
      */
     @FunctionalInterface
     public interface KeyPrefixProvider {
+        /**
+         * Compute the Redis key prefix for the given entity class.
+         *
+         * @param entityClass entity class
+         * @param globalPrefix configured global prefix
+         * @return computed key prefix
+         */
         String provide(Class<?> entityClass, String globalPrefix);
     }
 
@@ -121,11 +156,11 @@ public final class RedisRepositoryConfig<T, TID> {
             StringBuilder sb = new StringBuilder();
             if (!gp.isEmpty()) {
                 sb.append(gp);
-                if (!gp.endsWith(":")) {
-                    sb.append(":");
+                if (!gp.endsWith(KEY_SEPARATOR)) {
+                    sb.append(KEY_SEPARATOR);
                 }
             }
-            sb.append(entityName).append(":");
+            sb.append(entityName).append(KEY_SEPARATOR);
             return sb.toString();
         };
         private String defaultZsetName = "index";

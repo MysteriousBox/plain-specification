@@ -6,10 +6,16 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.Collection;
 
 @Getter
+
+/**
+ * Class NotExistsExpression.
+ *
+ * @author Jayden.Liang
+ */
+
 public class NotExistsExpression<T,E> implements IExpression<T> {
 
     private final SFunction<T, Collection<E>> left;
-    private final ExpressionOperatorEnum operator = ExpressionOperatorEnum.NOT_EXISTS;
     private final IExpression<E> expression;
     public NotExistsExpression(SFunction<T, Collection<E>> left, IExpression<E> expression) {
         this.left = left;

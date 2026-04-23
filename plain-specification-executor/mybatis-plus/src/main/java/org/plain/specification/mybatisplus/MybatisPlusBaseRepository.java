@@ -22,6 +22,13 @@ import java.util.concurrent.CompletionException;
 
 import static org.springframework.transaction.annotation.Propagation.REQUIRES_NEW;
 
+/**
+ * Class MybatisPlusBaseRepository.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  implements IBaseRepository<T,TID> {
 
     protected final BaseMapper<T> baseMapper;
@@ -47,7 +54,7 @@ public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  im
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities) {
         return CompletableFuture.supplyAsync(()->{
             baseMapper.insert(entities);
@@ -74,7 +81,7 @@ public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  im
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> updateRangeAsync(Collection<T> entities) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -114,7 +121,7 @@ public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  im
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(Collection<T> entities) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -127,7 +134,7 @@ public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  im
 
     @Override
     @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW)
+    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
         return CompletableFuture.runAsync(()->{
             try{

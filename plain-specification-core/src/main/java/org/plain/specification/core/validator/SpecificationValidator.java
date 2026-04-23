@@ -5,9 +5,16 @@ import org.plain.specification.core.ISpecification;
 import java.util.ArrayList;
 import java.util.Collection;
 
+/**
+ * Class SpecificationValidator.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class SpecificationValidator implements ISpecificationValidator{
 
-    public final static SpecificationValidator DEFAULT = new SpecificationValidator();
+    public static final SpecificationValidator DEFAULT = new SpecificationValidator();
 
     private final Collection<IValidator> validators;
 

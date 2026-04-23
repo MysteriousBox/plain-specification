@@ -10,6 +10,14 @@ import java.util.Map;
  */
 @FunctionalInterface
 public interface EntityBuilder<T> {
+
+
+    /**
+    * 从字段映射构建实体。
+    *
+    * @param fields 字段映射，键为字段名，值为字段值
+    * @return 构建的实体对象
+    */
     T buildEntity(Map<Object, Object> fields);
 }
 

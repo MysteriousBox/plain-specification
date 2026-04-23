@@ -5,6 +5,13 @@ import org.plain.specification.core.IPageResult;
 
 import java.util.Collection;
 
+/**
+ * Class PageResultAdapter.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class PageResultAdapter<T> implements IPageResult<T> {
 
     private final IPage<T> page;

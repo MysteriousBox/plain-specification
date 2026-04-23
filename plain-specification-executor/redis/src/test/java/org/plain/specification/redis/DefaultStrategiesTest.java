@@ -14,6 +14,7 @@ class DefaultStrategiesTest {
             return id;
         }
 
+        @SuppressWarnings("unused")
         public String getUuid() {
             return uuid;
         }
@@ -94,6 +95,7 @@ class DefaultStrategiesTest {
     @Test
     void testReflectionIdExtractor_defaultGetUuid() {
         // Create a class without getId method
+        @SuppressWarnings("unused")
         class NoGetIdEntity {
             private String uuid;
 
@@ -113,8 +115,9 @@ class DefaultStrategiesTest {
     @Test
     void testReflectionIdExtractor_defaultIdField() {
         // Create a class without getId or getUuid methods
+        @SuppressWarnings("unused")
         class OnlyIdFieldEntity {
-            private Integer id;
+            private final Integer id;
 
             public OnlyIdFieldEntity(Integer id) {
                 this.id = id;
@@ -128,8 +131,9 @@ class DefaultStrategiesTest {
     @Test
     void testReflectionIdExtractor_noIdFound() {
         // Create a class with no id-related fields or methods
+        @SuppressWarnings("unused")
         class NoIdEntity {
-            private String name;
+            private final String name;
 
             public NoIdEntity(String name) {
                 this.name = name;

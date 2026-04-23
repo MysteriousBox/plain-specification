@@ -9,6 +9,11 @@ import java.io.Serializable;
 /**
  * 分页查询参数
  */
+/**
+ * Class PageQuery.
+ *
+ * @author Jayden.Liang
+ */
 @Getter
 public class PageQuery implements Serializable {
 

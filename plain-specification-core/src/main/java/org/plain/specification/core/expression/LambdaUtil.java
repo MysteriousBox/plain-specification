@@ -6,17 +6,25 @@ import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
 
+/**
+ * Class LambdaUtil.
+ *
+ * @author Jayden.Liang
+ */
 public class LambdaUtil {
 
-    public static <T,R> String getFileName(Serializable lambda){
+    private static final String GET_PREFIX = "get";
+    private static final String IS_PREFIX = "is";
+
+    public static <T,R> String getFileName(Serializable lambda) {
         SerializedLambda func = getSerializedLambda(lambda);
         String methodName = func.getImplMethodName();
-        if (methodName.startsWith("get")){
-            return StringUtils.uncapitalize(methodName.substring(3));
-        }else if (methodName.startsWith("is")){
-            return StringUtils.uncapitalize(methodName.substring(2));
+        if (methodName.startsWith(GET_PREFIX)){
+            return StringUtils.uncapitalize(methodName.substring(GET_PREFIX.length()));
+        }else if (methodName.startsWith(IS_PREFIX)){
+            return StringUtils.uncapitalize(methodName.substring(IS_PREFIX.length()));
         }
-        throw new IllegalArgumentException("Not a valid getter method(must starts with get/is): " + methodName);
+        throw new IllegalArgumentException("Not a valid getter method (must start with get/is): " + methodName);
     }
 
 

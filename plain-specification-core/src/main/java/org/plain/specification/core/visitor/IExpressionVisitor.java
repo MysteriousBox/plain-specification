@@ -5,7 +5,7 @@ import org.plain.specification.core.expression.*;
 
 /**
  * 表达式访问者
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T>
  */
 public interface IExpressionVisitor<T,R> extends ILogicalExpressionVisitor<T,R>, IOrderExpressionVisitor<T,R>,IComparisonExpressionVisitor <T, R>  {

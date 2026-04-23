@@ -2,7 +2,13 @@ package org.plain.specification.core;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.List;
+
+/**
+ * Interface IPageResult.
+ *
+ * @author Jayden.Liang
+ */
+
 
 public interface IPageResult<T> extends Serializable {
 

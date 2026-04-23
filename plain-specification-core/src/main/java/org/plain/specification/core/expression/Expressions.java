@@ -11,21 +11,29 @@ import java.util.function.Predicate;
  * Expression builder class
  * Used to construct various types of expressions, included logical expressions(AND ,OR, NOT) and comparison expressions(equal, not equal, greater than, less than, greater than or equal, less than or equal, in, not in, between, like, exists, not exists).
  * @param <T>  Expression type
+ * @author Jayden.Liang
  */
 public class Expressions<T> {
 
-    // Current left expression
+    /**
+     * Current left expression
+     */
     @Getter
     private IExpression<T> currentLeft;
 
-    private ExpressionOperatorEnum  beforeOperator = null;
-    // Current operator, default is AND
-    private ExpressionOperatorEnum  currentOperator = ExpressionOperatorEnum.AND;
+    private ExpressionOperatorEnum beforeOperator = null;
+
+    /**
+     * Current operator, default is AND
+     */
+    private ExpressionOperatorEnum currentOperator = ExpressionOperatorEnum.AND;
 
     @Getter
     private IExpressionVisitor<T,Predicate<T>> visitor;
 
-    // Private constructor, prevent the creation of instances
+    /**
+     * Private constructor, prevent the creation of instances.
+     */
     private Expressions() {
     }
 

@@ -9,7 +9,13 @@ import org.plain.specification.core.expression.WhereExpressionInfo;
 import org.plain.specification.core.visitor.OrderExpressionVisitor;
 import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
-public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrderedSpecificationBuilder<T>{
+/**
+ * Default implementation of specification builder.
+ *
+ * @param <T> entity type
+ * @author Jayden.Liang
+ */
+public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     protected final Specification<T> specification;
 
@@ -28,7 +34,7 @@ public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrder
     }
 
     @Override
-    public ISpecificationBuilder<T> where(Expressions<T> expression, Boolean condition) {
+    public ISpecificationBuilder<T> where(Expressions<T> expression, boolean condition) {
         if (condition){
             WhereExpressionInfo<T> whereExpressionInfo = new WhereExpressionInfo<>(expression,new PredicateExpressionVisitor<>());
             specification.add(whereExpressionInfo);
@@ -42,7 +48,7 @@ public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrder
     }
 
     @Override
-    public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression, Boolean condition) {
+    public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression, boolean condition) {
         if (condition){
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderBy, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
@@ -57,7 +63,7 @@ public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrder
     }
 
     @Override
-    public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression, Boolean condition) {
+    public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression, boolean condition) {
         if (condition){
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
@@ -72,7 +78,7 @@ public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrder
     }
 
     @Override
-    public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression, Boolean condition) {
+    public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression, boolean condition) {
         if (condition&& !Specification.getIsChainDiscarded()){
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenBy, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
@@ -88,7 +94,7 @@ public class SpecificationBuilder<T> implements ISpecificationBuilder<T>, IOrder
     }
 
     @Override
-    public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression, Boolean condition) {
+    public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression, boolean condition) {
         if (condition&& !Specification.getIsChainDiscarded()){
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);

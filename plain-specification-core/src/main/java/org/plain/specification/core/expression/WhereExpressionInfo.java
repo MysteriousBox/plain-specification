@@ -6,6 +6,13 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 import java.util.function.Predicate;
 
+/**
+ * Class WhereExpressionInfo.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class WhereExpressionInfo <T> implements IExpressionDescriptor<T> {
 
     private Predicate<T> filterFunc;

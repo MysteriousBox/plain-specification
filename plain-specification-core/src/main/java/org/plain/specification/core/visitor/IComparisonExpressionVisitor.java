@@ -2,6 +2,13 @@ package org.plain.specification.core.visitor;
 
 import org.plain.specification.core.expression.*;
 
+/**
+ * Interface IComparisonExpressionVisitor.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public interface IComparisonExpressionVisitor <T, R> {
 
 

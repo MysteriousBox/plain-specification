@@ -1,6 +1,5 @@
 package org.plain.specification.core;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
@@ -8,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
  * 基础的 repository
  * 该 repository 主要实现一些常用的，通用的 操作方法 ，比如 保存、更新、删除等方法
  * @param <T> ENTITY 的类型
- * @author Hugh
+ * @author Jayden.Liang
  */
 public interface IBaseRepository<T, TID> extends IReadBaseRepository<T, TID> {
 

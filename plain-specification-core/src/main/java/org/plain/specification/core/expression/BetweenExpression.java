@@ -5,9 +5,14 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
  * between expression
- * @author Hugh
+ * @author Jayden.Liang
  * @param <T>
  * @param <V>
+ */
+/**
+ * Class BetweenExpression.
+ *
+ * @author Jayden.Liang
  */
 @Getter
 public class BetweenExpression <T, V extends Comparable<V>> implements IExpression<T>{

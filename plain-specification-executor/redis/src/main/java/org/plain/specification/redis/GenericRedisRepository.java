@@ -1,11 +1,6 @@
 package org.plain.specification.redis;
 
-import org.plain.specification.core.ISpecification;
 import org.springframework.data.redis.core.StringRedisTemplate;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * 基于策略的通用 Redis 仓储实现。子类可以直接继承或使用工厂构造。

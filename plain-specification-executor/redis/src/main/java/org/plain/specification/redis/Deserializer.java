@@ -7,6 +7,11 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Interface Deserializer.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface Deserializer<T> {
     T deserialize(String serialized);

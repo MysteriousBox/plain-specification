@@ -7,6 +7,11 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Interface Serializer.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface Serializer<T> {
     String serialize(T entity);

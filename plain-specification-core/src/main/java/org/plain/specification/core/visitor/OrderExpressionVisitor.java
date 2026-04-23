@@ -4,6 +4,13 @@ import org.plain.specification.core.expression.OrderExpression;
 
 import java.util.Comparator;
 
+/**
+ * Class OrderExpressionVisitor.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class OrderExpressionVisitor<T> extends AbstractExpressionVisitor<T, Comparator<T>> {
 
     @Override

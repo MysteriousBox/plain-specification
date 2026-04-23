@@ -21,6 +21,11 @@ import java.util.concurrent.ForkJoinPool;
  *
  * @author Jayden.Liang
  */
+/**
+ * Class PlainRedisAutoConfiguration.
+ *
+ * @author Jayden.Liang
+ */
 @Configuration
 @EnableConfigurationProperties(RedisRepositoryProperties.class)
 public class PlainRedisAutoConfiguration {

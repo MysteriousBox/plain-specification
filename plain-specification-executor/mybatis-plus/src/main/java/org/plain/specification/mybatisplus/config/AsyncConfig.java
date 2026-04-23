@@ -9,6 +9,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
 @EnableAsync
+/**
+ * Class AsyncConfig.
+ *
+ * @author Jayden.Liang
+ */
+
 public class AsyncConfig {
 
     @Bean(name = AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)

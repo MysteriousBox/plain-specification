@@ -6,15 +6,14 @@ import org.junit.jupiter.api.Test;
 import org.plain.specification.core.expression.*;
 import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * test Expressions used
  */
-public class ExpressionsTest {
+class ExpressionsTest {
     // Helper class for testing
     @Getter
     private static class TestEntity {
@@ -32,7 +31,7 @@ public class ExpressionsTest {
     private SFunction<TestEntity, Integer> mockIntFunc;
 
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         builder = Expressions.create();
         mockStringFunc = TestEntity::getName;
         mockIntFunc = TestEntity::getAge;
@@ -40,7 +39,7 @@ public class ExpressionsTest {
 
     // Test case 1: Basic AND combination
     @Test
-    public void testAndExpression() {
+    void testAndExpression() {
         IExpression<TestEntity> expr = builder.equal(mockStringFunc, "Alice")
                 .and()
                 .greaterThan(mockIntFunc, 18)
@@ -57,7 +56,7 @@ public class ExpressionsTest {
 
     // Test case 2: OR with NOT combination
     @Test
-    public void testOrExpressionWithNot() {
+    void testOrExpressionWithNot() {
         IExpression<TestEntity> expr = builder.equal(mockStringFunc, "Alice")
                 .or()
                 .not()
@@ -76,15 +75,12 @@ public class ExpressionsTest {
     }
 
     @Test
-    public void testNotExpression() {
-        List<TestEntity> entities = Arrays.asList(
-                new TestEntity("Alice", 20),
-                new TestEntity("Bob", 17),
-                new TestEntity("Charlie", 30)
-        );
-        // 按照年龄倒序 排序倒序
-
-
+    void testNotExpression() {
+        IExpression<TestEntity> expr = new NotExpression<>(new EqualExpression<>(TestEntity::getAge, 20));
+        assertInstanceOf(NotExpression.class, expr);
+        Predicate<TestEntity> predicate = expr.accept(new PredicateExpressionVisitor<>());
+        assertTrue(predicate.test(new TestEntity("Bob", 17)));
+        assertFalse(predicate.test(new TestEntity("Alice", 20)));
     }
 
 }

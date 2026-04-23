@@ -5,6 +5,13 @@ import org.plain.specification.core.ISpecification;
 import java.util.Arrays;
 import java.util.Collection;
 
+/**
+ * Class InMemorySpecificationEvaluator.
+ *
+ * @author Jayden.Liang
+ */
+
+
 public class InMemorySpecificationEvaluator implements ISpecificationEvaluator {
 
     public final static InMemorySpecificationEvaluator DEFAULT = new InMemorySpecificationEvaluator();

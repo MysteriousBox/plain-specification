@@ -7,6 +7,11 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
+/**
+ * Interface TtlProvider.
+ *
+ * @author Jayden.Liang
+ */
 @FunctionalInterface
 public interface TtlProvider<T> {
     Long getTtl(T entity);

@@ -6,6 +6,13 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.Comparator;
 
 @Getter
+
+/**
+ * Class OrderExpression.
+ *
+ * @author Jayden.Liang
+ */
+
 public class OrderExpression<T,V extends Comparable<V>> implements IExpression<T> {
 
     private final SFunction<T, V> left;
