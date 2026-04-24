@@ -2,18 +2,22 @@ package org.plain.specification.redis;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.plain.utils.JsonUtil;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.HashOperations;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class GenericRedisRepositoryTest {
@@ -52,6 +56,7 @@ class GenericRedisRepositoryTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "null"})
     void testSaveAndFindById() {
         RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
             .resolvedZsetKey("users:zset")
@@ -83,14 +88,14 @@ class GenericRedisRepositoryTest {
         entries.put("id", "\"1\"");
         entries.put("name", "\"Alice\"");
         when(hashOps.entries(anyString())).thenReturn(entries);
-        when(zSetOps.range(eq("users:zset"), eq(0L), eq(0L))).thenReturn(Collections.singleton("1"));
+        when(zSetOps.range("users:zset", 0L, 0L)).thenReturn(Collections.singleton("1"));
         String userJson = JsonUtil.serialize(u);
-        when(valueOps.multiGet(anyList())).thenReturn(Collections.singletonList(userJson));
-        when(redisTemplate.execute(any(), anyList(), any())).thenReturn(1); // mock execute to return success
+        when(valueOps.multiGet(ArgumentMatchers.<java.util.Collection<String>>any())).thenReturn(Collections.singletonList(userJson));
+        when(redisTemplate.execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L); // mock execute to return success
 
         User saved = repo.save(u);
         assertNotNull(saved);
-        verify(redisTemplate, atLeastOnce()).execute(any(), anyList(), any());
+        verify(redisTemplate, atLeastOnce()).execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class));
 
         User found = repo.findById("1");
         assertNotNull(found);
@@ -98,6 +103,7 @@ class GenericRedisRepositoryTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "null"})
     void testDeleteById() {
         RedisRepositoryConfig<User, String> config = new RedisRepositoryConfig.Builder<User, String>()
             .resolvedZsetKey("users:zset")
@@ -121,9 +127,9 @@ class GenericRedisRepositoryTest {
             }) // mock entityBuilder
             .build();
         GenericRedisRepository<User, String> repo = new GenericRedisRepository<>(redisTemplate, config);
-        when(redisTemplate.execute(any(), anyList(), any())).thenReturn(1); // mock execute to return success
+        when(redisTemplate.execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L); // mock execute to return success
         repo.deleteById("1");
         // delete uses redisTemplate.execute with lua script
-        verify(redisTemplate, atLeastOnce()).execute(any(), anyList(), any());
+        verify(redisTemplate, atLeastOnce()).execute(ArgumentMatchers.<RedisScript<Long>>any(), ArgumentMatchers.<List<String>>any(), ArgumentMatchers.<Object[]>any());
     }
 }

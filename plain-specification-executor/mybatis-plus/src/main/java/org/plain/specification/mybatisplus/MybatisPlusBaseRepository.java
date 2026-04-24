@@ -27,8 +27,7 @@ import static org.springframework.transaction.annotation.Propagation.REQUIRES_NE
  *
  * @author Jayden.Liang
  */
-
-
+@SuppressWarnings({"AlibabaAbstractClassShouldStartWithAbstractNamingRule", "AbstractClassShouldStartWithAbstractNamingRule"})
 public abstract class MybatisPlusBaseRepository<T, TID extends Serializable>  implements IBaseRepository<T,TID> {
 
     protected final BaseMapper<T> baseMapper;

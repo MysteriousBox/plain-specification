@@ -6,6 +6,7 @@ import org.plain.specification.core.expression.SFunction;
 import java.io.Serializable;
 
 import java.lang.invoke.SerializedLambda;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
@@ -22,12 +23,12 @@ public class MpFieldNameResolver {
     private static final String GET_PREFIX = "get";
     private static final String IS_PREFIX = "is";
 
-    public static  <T> String resolve(SFunction<T, ?> func) {
+    public static <T> String resolve(SFunction<T, ?> func) {
         SerializedLambda lambda = serialize(func);
         return resolve(lambda);
     }
 
-    public static String resolve(SerializedLambda lambda){
+    public static String resolve(SerializedLambda lambda) {
         String methodName = lambda.getImplMethodName();
         // 转换 getter 方法名 -> 属性名
         if (methodName.startsWith(GET_PREFIX)) {
@@ -38,22 +39,25 @@ public class MpFieldNameResolver {
         return Character.toLowerCase(methodName.charAt(0)) + methodName.substring(1);
     }
 
-    public static <T> Class<T> getDomainClass(SerializedLambda lambda) {
+    public static Class<?> getDomainClass(SerializedLambda lambda) {
         String className = lambda.getImplClass().replace('/', '.');
         try {
-            return (Class<T>) Class.forName(className);
+            return Class.forName(className);
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("无法加载类：" + className, e);
+            throw new IllegalStateException("无法加载类：" + className, e);
         }
     }
 
+    @SuppressWarnings("squid:S3011")
     public static SerializedLambda serialize(Serializable lambda) {
         try {
             Method write = lambda.getClass().getDeclaredMethod("writeReplace");
+            // 反射访问私有方法是必要的
+            // NOSONAR
             write.setAccessible(true);
             return (SerializedLambda) write.invoke(lambda);
-        } catch (Exception e) {
-            throw new RuntimeException("无法解析 Lambda 表达式", e);
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("无法解析 Lambda 表达式", e);
         }
     }
 

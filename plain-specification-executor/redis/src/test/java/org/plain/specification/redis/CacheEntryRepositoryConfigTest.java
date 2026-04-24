@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -168,6 +169,7 @@ class CacheEntryRepositoryConfigTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "null"})
     void testRepositoryWithCacheEntry() {
         RedisRepositoryConfig<CacheEntry<User>, String> config = buildConfig();
         GenericRedisRepository<CacheEntry<User>, String> repo = new GenericRedisRepository<>(redisTemplate, config);
@@ -176,11 +178,11 @@ class CacheEntryRepositoryConfigTest {
         CacheEntry<User> entry = new CacheEntry<>("user:1", new User("1", "Alice"), metadata);
 
         // Mock save
-        when(redisTemplate.execute(any(), anyList(), any())).thenReturn(1L);
+        when(redisTemplate.execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L);
 
         CacheEntry<User> saved = repo.save(entry);
         assertNotNull(saved);
-        verify(redisTemplate, atLeastOnce()).execute(any(), anyList(), any());
+        verify(redisTemplate, atLeastOnce()).execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class));
 
         // Mock findById
         Map<String, String> entries = new HashMap<>();
@@ -197,8 +199,12 @@ class CacheEntryRepositoryConfigTest {
     }
 
     private RedisRepositoryConfig<CacheEntry<User>, String> buildConfig() {
-        @SuppressWarnings("unchecked")
-        Deserializer<CacheEntry<User>> deserializer = s -> (CacheEntry<User>) JsonUtil.deserialize(s, CacheEntry.class);
+       
+        Deserializer<CacheEntry<User>> deserializer = s -> {
+            @SuppressWarnings("unchecked")
+            CacheEntry<User> casted = (CacheEntry<User>) JsonUtil.deserialize(s, CacheEntry.class);
+            return casted;
+        };
         IdExtractor<CacheEntry<User>, String> idExtractor = CacheEntry::getCacheKey;
         ScoreProvider<CacheEntry<User>> scoreProvider = entry -> entry.getCacheMetadata() == null || entry.getCacheMetadata().getScore() == null
             ? 0d

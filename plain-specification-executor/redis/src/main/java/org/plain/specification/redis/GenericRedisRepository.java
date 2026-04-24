@@ -10,7 +10,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  * @author Jayden.Liang
  * @since 1.0
  */
-public class GenericRedisRepository<T, TID> extends RedisBaseRepository<T, TID> {
+public class GenericRedisRepository<T, TID> extends BaseRedisRepository<T, TID> {
 
     /**
      * 使用现成的配置构造仓储

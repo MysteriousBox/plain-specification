@@ -12,7 +12,6 @@ import java.util.Collection;
  *
  * @author Jayden.Liang
  */
-
 public class NotInExpression <T,V extends Comparable<V>> implements IExpression<T>{
 
     private final SFunction<T, V> left;

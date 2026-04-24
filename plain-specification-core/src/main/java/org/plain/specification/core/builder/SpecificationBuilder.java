@@ -15,7 +15,7 @@ import org.plain.specification.core.visitor.PredicateExpressionVisitor;
  * @param <T> entity type
  * @author Jayden.Liang
  */
-public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
+public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> {
 
     protected final Specification<T> specification;
 
@@ -30,13 +30,14 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     @Override
     public ISpecificationBuilder<T> where(Expressions<T> expression) {
-        return where(expression,true);
+        return where(expression, true);
     }
 
     @Override
     public ISpecificationBuilder<T> where(Expressions<T> expression, boolean condition) {
-        if (condition){
-            WhereExpressionInfo<T> whereExpressionInfo = new WhereExpressionInfo<>(expression,new PredicateExpressionVisitor<>());
+        if (condition) {
+            WhereExpressionInfo<T> whereExpressionInfo = new WhereExpressionInfo<>(expression,
+                    new PredicateExpressionVisitor<>());
             specification.add(whereExpressionInfo);
         }
         return this;
@@ -44,13 +45,14 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     @Override
     public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression) {
-        return orderBy(expression,true);
+        return orderBy(expression, true);
     }
 
     @Override
     public IOrderedSpecificationBuilder<T> orderBy(Expressions<T> expression, boolean condition) {
-        if (condition){
-            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderBy, new OrderExpressionVisitor<>());
+        if (condition) {
+            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderBy,
+                    new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
         }
         Specification.setIsChainDiscarded(!condition);
@@ -59,13 +61,14 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     @Override
     public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression) {
-        return orderByDescending(expression,true);
+        return orderByDescending(expression, true);
     }
 
     @Override
     public IOrderedSpecificationBuilder<T> orderByDescending(Expressions<T> expression, boolean condition) {
-        if (condition){
-            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.OrderByDescending, new OrderExpressionVisitor<>());
+        if (condition) {
+            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression,
+                    OrderTypeEnum.OrderByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
         }
         Specification.setIsChainDiscarded(!condition);
@@ -74,15 +77,16 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     @Override
     public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression) {
-        return thenBy(expression,true);
+        return thenBy(expression, true);
     }
 
     @Override
     public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression, boolean condition) {
-        if (condition&& !Specification.getIsChainDiscarded()){
-            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenBy, new OrderExpressionVisitor<>());
+        if (condition && !Specification.getChainDiscarded()) {
+            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenBy,
+                    new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
-        }else if (condition&& Specification.getIsChainDiscarded()){
+        } else if (condition && Specification.getChainDiscarded()) {
             Specification.setIsChainDiscarded(true);
         }
         return this;
@@ -90,15 +94,16 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T>{
 
     @Override
     public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression) {
-        return thenByDescending(expression,true);
+        return thenByDescending(expression, true);
     }
 
     @Override
     public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression, boolean condition) {
-        if (condition&& !Specification.getIsChainDiscarded()){
-            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenByDescending, new OrderExpressionVisitor<>());
+        if (condition && !Specification.getChainDiscarded()) {
+            OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression,
+                    OrderTypeEnum.ThenByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
-        }else {
+        } else {
             Specification.setIsChainDiscarded(true);
         }
         return this;

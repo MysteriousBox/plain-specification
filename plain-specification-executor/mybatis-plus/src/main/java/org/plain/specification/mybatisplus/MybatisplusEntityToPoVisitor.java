@@ -13,6 +13,7 @@ import java.util.Comparator;
  *
  * @author Jayden.Liang
  */
+@SuppressWarnings("squid:S1602")
 public class MybatisplusEntityToPoVisitor <T,PO> extends AbstractExpressionVisitor<T, QueryWrapper<PO>> {
 
 

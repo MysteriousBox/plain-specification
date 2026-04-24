@@ -7,13 +7,14 @@ package org.plain.specification.redis;
  * @author Jayden.Liang
  * @since 1.0
  */
-/**
- * Interface Serializer.
- *
- * @author Jayden.Liang
- */
 @FunctionalInterface
 public interface Serializer<T> {
+
+    /**
+     * 将实体序列化为字符串
+     * @param entity 实体对象
+     * @return 序列化后的字符串
+     */
     String serialize(T entity);
 }
 

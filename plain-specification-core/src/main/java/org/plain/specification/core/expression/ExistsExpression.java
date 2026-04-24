@@ -5,14 +5,13 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 import java.util.Collection;
 
-@Getter
 
 /**
  * Class ExistsExpression.
  *
  * @author Jayden.Liang
  */
-
+@Getter
 public class ExistsExpression <T,E> implements IExpression<T> {
 
     private final SFunction<T, Collection<E>> left;

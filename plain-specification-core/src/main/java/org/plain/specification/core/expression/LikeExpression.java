@@ -3,14 +3,14 @@ package org.plain.specification.core.expression;
 import lombok.Getter;
 import org.plain.specification.core.visitor.IExpressionVisitor;
 
-@Getter
+
 
 /**
  * Class LikeExpression.
  *
  * @author Jayden.Liang
  */
-
+@Getter
 public class LikeExpression<T> implements IExpression<T>{
 
     private final SFunction<T, String> left;

@@ -4,6 +4,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
@@ -12,11 +13,15 @@ import java.lang.reflect.Method;
  * @author Jayden.Liang
  */
 public class LambdaUtil {
+    private LambdaUtil() {
+        /* This utility class should not be instantiated */
+    }
+
 
     private static final String GET_PREFIX = "get";
     private static final String IS_PREFIX = "is";
 
-    public static <T,R> String getFileName(Serializable lambda) {
+    public static String getFileName(Serializable lambda) {
         SerializedLambda func = getSerializedLambda(lambda);
         String methodName = func.getImplMethodName();
         if (methodName.startsWith(GET_PREFIX)){
@@ -28,6 +33,7 @@ public class LambdaUtil {
     }
 
 
+    @SuppressWarnings("squid:S3011")
     private static SerializedLambda getSerializedLambda(Serializable lambda) {
         try {
             Method method = lambda.getClass().getDeclaredMethod("writeReplace");
@@ -36,8 +42,8 @@ public class LambdaUtil {
             if (result instanceof SerializedLambda) {
                 return (SerializedLambda) result;
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get SerializedLambda", e);
+        } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to get SerializedLambda", e);
         }
         throw new IllegalArgumentException("Not a valid lambda instance");
     }

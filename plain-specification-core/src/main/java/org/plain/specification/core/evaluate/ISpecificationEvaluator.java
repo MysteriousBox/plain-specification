@@ -9,8 +9,6 @@ import java.util.Collection;
  *
  * @author Jayden.Liang
  */
-
-
 public interface ISpecificationEvaluator {
 
     /**

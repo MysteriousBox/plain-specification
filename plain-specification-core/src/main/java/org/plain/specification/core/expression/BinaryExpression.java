@@ -2,14 +2,16 @@ package org.plain.specification.core.expression;
 
 import lombok.Getter;
 
-@Getter
+
 
 /**
  * Class BinaryExpression.
- *
  * @author Jayden.Liang
+ * @param <T> 类型
+ * @param <V> 值类型
  */
-
+@Getter
+@SuppressWarnings({"AlibabaAbstractClassShouldStartWithAbstractNamingRule", "AbstractClassShouldStartWithAbstractNamingRule"})
 public abstract class BinaryExpression<T,V extends Comparable<V>> implements IExpression<T>{
 
     private final SFunction<T, V> left;

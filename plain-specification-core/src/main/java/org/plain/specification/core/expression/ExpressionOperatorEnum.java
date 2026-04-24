@@ -6,11 +6,6 @@ import lombok.Getter;
  * 表达式操作符枚举
  * @author Jayden.Liang
  */
-/**
- * Enum ExpressionOperatorEnum.
- *
- * @author Jayden.Liang
- */
 @Getter
 public enum ExpressionOperatorEnum {
     /** Logical AND operator. */

@@ -10,8 +10,6 @@ import org.plain.specification.core.expression.OrExpression;
  *
  * @author Jayden.Liang
  */
-
-
 public interface ILogicalExpressionVisitor<T, R> {
 
     /**

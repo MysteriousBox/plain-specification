@@ -14,7 +14,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -28,13 +28,13 @@ public class Specification<T> implements ISpecification<T>{
 
     private final ISpecificationBuilder<T> query= new SpecificationBuilder<>(this);
 
-    private static final ISpecificationValidator validator = SpecificationValidator.DEFAULT;
+    private static final ISpecificationValidator VALIDATOR = SpecificationValidator.DEFAULT;
 
-    private Function<Collection<T>,Collection<T>> postProcessingAction;
+    private UnaryOperator<Collection<T>> postProcessingAction;
 
     private ISpecificationEvaluator evaluator = InMemorySpecificationEvaluator.DEFAULT;
 
-    private static final ThreadLocal<Boolean> IS_CHAIN_DISCARDED = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Boolean> CHAIN_DISCARDED = ThreadLocal.withInitial(() -> false);
 
     protected void setEvaluator(ISpecificationEvaluator evaluator) {
         this.evaluator = evaluator;
@@ -44,7 +44,7 @@ public class Specification<T> implements ISpecification<T>{
     }
 
     protected ISpecificationValidator getValidator() {
-        return validator;
+        return VALIDATOR;
     }
 
     private List<IExpressionDescriptor<T>> whereDescriptors;
@@ -83,15 +83,15 @@ public class Specification<T> implements ISpecification<T>{
 
     @Override
     public Boolean isSatisfiedBy(T entity) {
-        return validator.isValid(entity, this);
+        return VALIDATOR.isValid(entity, this);
     }
 
-    protected void setPostProcessingAction(Function<Collection<T>, Collection<T>> postProcessingAction) {
+    protected void setPostProcessingAction(UnaryOperator<Collection<T>> postProcessingAction) {
         this.postProcessingAction = postProcessingAction;
     }
 
     @Override
-    public Function<Collection<T>, Collection<T>> postProcessingAction() {
+    public UnaryOperator<Collection<T>> postProcessingAction() {
         return this.postProcessingAction;
     }
 
@@ -105,16 +105,16 @@ public class Specification<T> implements ISpecification<T>{
         return orderExpressions==null? new ArrayList<>(DEFAULT_CAPACITY_WHERE):orderExpressions;
     }
 
-    public static void setIsChainDiscarded(Boolean isChainDiscarded) {
-        IS_CHAIN_DISCARDED.set(isChainDiscarded);
+    public static void setIsChainDiscarded(boolean isChainDiscarded) {
+        CHAIN_DISCARDED.set(isChainDiscarded);
     }
 
-    public static Boolean getIsChainDiscarded() {
-        return IS_CHAIN_DISCARDED.get();
+    public static boolean getChainDiscarded() {
+        return CHAIN_DISCARDED.get();
     }
 
     public static void clearIsChainDiscarded() {
-        IS_CHAIN_DISCARDED.remove();
+        CHAIN_DISCARDED.remove();
     }
 
 

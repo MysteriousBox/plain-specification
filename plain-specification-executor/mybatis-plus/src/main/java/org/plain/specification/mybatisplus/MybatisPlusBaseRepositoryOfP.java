@@ -32,6 +32,7 @@ import static org.springframework.transaction.annotation.Propagation.REQUIRES_NE
  * @param <T>
  * @author Jayden.Liang
  */
+@SuppressWarnings({"AlibabaAbstractClassShouldStartWithAbstractNamingRule", "AbstractClassShouldStartWithAbstractNamingRule"})
 @Slf4j
 public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable> implements IBaseRepository<T,TID> {
 

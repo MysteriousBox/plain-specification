@@ -14,7 +14,7 @@ import java.util.Collection;
 
 public class InMemorySpecificationEvaluator implements ISpecificationEvaluator {
 
-    public final static InMemorySpecificationEvaluator DEFAULT = new InMemorySpecificationEvaluator();
+    public static final  InMemorySpecificationEvaluator DEFAULT = new InMemorySpecificationEvaluator();
 
     private final Collection<IEvaluator> evaluators;
 

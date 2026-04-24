@@ -14,6 +14,8 @@ public interface IExpression<T> {
     /**
      * 接受访问者
      * @param visitor 访问者
+     * @param <R> 访问者返回类型
+     * @return 访问者返回结果
      */
     <R> R accept(IExpressionVisitor<T,R> visitor);
 }

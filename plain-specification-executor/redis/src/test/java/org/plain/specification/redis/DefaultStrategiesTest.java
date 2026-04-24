@@ -2,6 +2,12 @@ package org.plain.specification.redis;
 
 import lombok.var;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.stream.Stream;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class DefaultStrategiesTest {
@@ -13,8 +19,7 @@ class DefaultStrategiesTest {
         public Long getId() {
             return id;
         }
-
-        @SuppressWarnings("unused")
+        
         public String getUuid() {
             return uuid;
         }
@@ -25,28 +30,21 @@ class DefaultStrategiesTest {
         }
     }
 
-    @Test
-    void testEnterpriseKeyPrefixProvider_withTenant() {
-        TenantProvider tenantProvider = () -> "tenantA";
-        var provider = DefaultStrategies.enterpriseKeyPrefixProvider("prod", tenantProvider);
+    @ParameterizedTest
+    @MethodSource("enterpriseKeyPrefixProviderArguments")
+    void testEnterpriseKeyPrefixProvider(String env, String tenant, String expected) {
+        TenantProvider tenantProvider = () -> tenant;
+        var provider = DefaultStrategies.enterpriseKeyPrefixProvider(env, tenantProvider);
         String prefix = provider.provide(String.class, "plain");
-        assertEquals("prod:tenantA:plain:String:", prefix);
+        assertEquals(expected, prefix);
     }
 
-    @Test
-    void testEnterpriseKeyPrefixProvider_noTenant() {
-        TenantProvider tenantProvider = () -> null;
-        var provider = DefaultStrategies.enterpriseKeyPrefixProvider("prod", tenantProvider);
-        String prefix = provider.provide(String.class, "plain");
-        assertEquals("prod:plain:String:", prefix);
-    }
-
-    @Test
-    void testEnterpriseKeyPrefixProvider_noEnv() {
-        TenantProvider tenantProvider = () -> "t2";
-        var provider = DefaultStrategies.enterpriseKeyPrefixProvider(null, tenantProvider);
-        String prefix = provider.provide(String.class, "plain");
-        assertEquals("t2:plain:String:", prefix);
+    static Stream<Arguments> enterpriseKeyPrefixProviderArguments() {
+        return Stream.of(
+                Arguments.of("prod", "tenantA", "prod:tenantA:plain:String:"),
+                Arguments.of("prod", null, "prod:plain:String:"),
+                Arguments.of(null, "t2", "t2:plain:String:")
+        );
     }
 
     @Test

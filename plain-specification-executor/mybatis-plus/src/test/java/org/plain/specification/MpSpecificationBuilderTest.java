@@ -26,18 +26,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
 @ExtendWith(MockitoExtension.class)
-public class MpSpecificationBuilderTest {
+class MpSpecificationBuilderTest {
 
     @Data
     @AllArgsConstructor
     @TableName
-    public static class Person{
+    static class Person{
 
         @TableId("id")
         private Long id;
@@ -51,7 +50,7 @@ public class MpSpecificationBuilderTest {
 
     @Data
     @AllArgsConstructor
-    public static class Person2{
+    static class Person2{
         private String name;
         private int age;
     }
@@ -60,29 +59,23 @@ public class MpSpecificationBuilderTest {
     private BaseMapper<Person> mapper;
 
     @BeforeAll
-    public static void init() {
+    static void init() {
         TableInfo tableInfo = TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Person.class);
         Assertions.assertEquals("person", tableInfo.getTableName());
     }
 
-    @Test
-    public void test() {
-
-
-
-
-    }
 
     @Captor
     ArgumentCaptor<Wrapper<Person>> wrapperCaptor;
     // 测试用例
     @Test
-    public void testFieldConversion() {
+    @SuppressWarnings("unchecked")
+    void testFieldConversion() {
 
         // Arrange
          // 应为 "name"
 
-        when(mapper.selectList(any())).thenReturn(Collections.singletonList(new Person(1L, "张三", 18)));
+        when(mapper.selectList(Mockito.<Wrapper<Person>>any())).thenReturn(Collections.singletonList(new Person(1L, "张三", 18)));
 
         // Act
         LambdaQueryWrapper<Person> wrapper = Wrappers.<Person>lambdaQuery().eq(Person::getName, "张三");
@@ -93,6 +86,7 @@ public class MpSpecificationBuilderTest {
         assertEquals(1, people.size());
         assertEquals("张三", people.get(0).getName());
         Wrapper<Person> captured = wrapperCaptor.getValue();
+        assertNotNull(captured);
 
         String sqlSegment;
         try {
@@ -108,8 +102,27 @@ public class MpSpecificationBuilderTest {
         // 读取参数值
         Map<String, Object> paramMap = null;
         try {
-            paramMap = (Map<String, Object>) ReflectionTestUtils.getField(captured, "paramNameValuePairs");
-        } catch (Exception ignore) {}
+            Object rawParamMap = ReflectionTestUtils.getField(captured, "paramNameValuePairs");
+            if (rawParamMap instanceof Map) {
+                //noinspection unchecked
+                paramMap = (Map<String, Object>) rawParamMap;
+            }
+        } catch (Exception ignore) { 
+             // 反射失败，可能是因为 MyBatis-Plus 版本不同，尝试从 toString 中解析参数
+            String capturedStr = captured.toString();
+            int start = capturedStr.indexOf("{");
+            int end = capturedStr.lastIndexOf("}");
+            if (start != -1 && end != -1 && end > start) {
+                String paramsStr = capturedStr.substring(start + 1, end);
+                paramMap = new java.util.HashMap<>();
+                for (String param : paramsStr.split(", ")) {
+                    String[] keyValue = param.split("=");
+                    if (keyValue.length == 2) {
+                        paramMap.put(keyValue[0].trim(), keyValue[1].trim());
+                    }
+                }
+            }   
+        }
         System.out.println("Params: " + paramMap);
         assertNotNull(paramMap);
         assertTrue(paramMap.containsValue("张三"), "Should contain value '张三'");

@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
@@ -24,10 +25,13 @@ public final class DefaultStrategies {
 
     private static final String GET_PREFIX = "get";
     private static final String IS_PREFIX = "is";
+    private static final int GET_PREFIX_LENGTH = GET_PREFIX.length();
+    private static final int IS_PREFIX_LENGTH = IS_PREFIX.length();
     private static final String GET_ID_METHOD = "getId";
     private static final String GET_UUID_METHOD = "getUuid";
     private static final String ID_FIELD = "id";
     private static final String COLON = ":";
+    private static final String CLAZZ_NOT_NULL_MESSAGE = "clazz must not be null";
 
     private DefaultStrategies() {
         // no-op
@@ -47,7 +51,7 @@ public final class DefaultStrategies {
     }
 
     public static <T> Deserializer<T> jacksonDeserializer(Class<T> clazz) {
-        Objects.requireNonNull(clazz, "clazz must not be null");
+        Objects.requireNonNull(clazz, CLAZZ_NOT_NULL_MESSAGE);
         return serialized -> {
             if (serialized == null) {
                 return null;
@@ -69,7 +73,7 @@ public final class DefaultStrategies {
      * @return IdExtractor 实例
      */
     public static <T, TID> IdExtractor<T, TID> reflectionIdExtractor(Class<T> clazz, String idFieldOrGetter) {
-        Objects.requireNonNull(clazz, "clazz must not be null");
+        Objects.requireNonNull(clazz, CLAZZ_NOT_NULL_MESSAGE);
         return entity -> entity == null ? null : extractId(clazz, entity, idFieldOrGetter);
     }
 
@@ -93,7 +97,7 @@ public final class DefaultStrategies {
     }
 
     private static <T, TID> TID extractIdBySpecifiedName(Class<T> clazz, T entity, String idFieldOrGetter) {
-        Objects.requireNonNull(clazz, "clazz must not be null");
+        Objects.requireNonNull(clazz, CLAZZ_NOT_NULL_MESSAGE);
         boolean isMethod = idFieldOrGetter.startsWith(GET_PREFIX) || idFieldOrGetter.startsWith(IS_PREFIX);
         try {
             return tryGetId(clazz, entity, idFieldOrGetter, isMethod);
@@ -111,7 +115,7 @@ public final class DefaultStrategies {
     private static <T, TID> TID tryGetIdSafe(Class<T> clazz, T entity, String name, boolean isMethod) {
         try {
             return tryGetId(clazz, entity, name, isMethod);
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException e) {
             return null;
         }
     }
@@ -119,7 +123,7 @@ public final class DefaultStrategies {
     private static <T, TID> TID tryGetIdByJacksonAnnotationSafe(Class<T> clazz, T entity) {
         try {
             return tryGetIdByJacksonAnnotation(clazz, entity);
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException e) {
             return null;
         }
     }
@@ -134,8 +138,8 @@ public final class DefaultStrategies {
      * @return extracted id value
      * @throws Exception when the field/method is missing or reflection invocation fails
      */
-    @SuppressWarnings("squid:S3011")
-    private static <T, TID> TID tryGetId(Class<T> clazz, T entity, String name, boolean isMethod) throws Exception {
+    @SuppressWarnings({"squid:S3011", "unchecked"})
+    private static <T, TID> TID tryGetId(Class<T> clazz, T entity, String name, boolean isMethod) throws ReflectiveOperationException {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
             if (isMethod) {
@@ -170,7 +174,7 @@ public final class DefaultStrategies {
      * @return true if the name equals "id" (case-insensitive)
      */
     private static boolean isIdPropertyName(String name) {
-        return "id".equalsIgnoreCase(name);
+        return ID_FIELD.equalsIgnoreCase(name);
     }
 
     /**
@@ -181,11 +185,11 @@ public final class DefaultStrategies {
      */
     private static String getterToPropertyName(Method method) {
         String name = method.getName();
-        if (name.startsWith(GET_PREFIX) && name.length() > GET_PREFIX.length()) {
-            return Character.toLowerCase(name.charAt(GET_PREFIX.length())) + name.substring(GET_PREFIX.length() + 1);
+        if (name.startsWith(GET_PREFIX) && name.length() > GET_PREFIX_LENGTH) {
+            return Character.toLowerCase(name.charAt(GET_PREFIX_LENGTH)) + name.substring(GET_PREFIX_LENGTH + 1);
         }
-        if (name.startsWith(IS_PREFIX) && name.length() > IS_PREFIX.length()) {
-            return Character.toLowerCase(name.charAt(2)) + name.substring(3);
+        if (name.startsWith(IS_PREFIX) && name.length() > IS_PREFIX_LENGTH) {
+            return Character.toLowerCase(name.charAt(IS_PREFIX_LENGTH)) + name.substring(IS_PREFIX_LENGTH + 1);
         }
         return name;
     }
@@ -252,7 +256,7 @@ public final class DefaultStrategies {
      * @return extracted id value or null if not found
      * @throws Exception when reflection access fails
      */
-    @SuppressWarnings("squid:S3011")
+    @SuppressWarnings({"squid:S3011", "unchecked"})
     private static <T, I> I tryGetIdByJacksonAnnotation(Class<T> clazz, T entity) throws ReflectiveOperationException {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
@@ -283,27 +287,56 @@ public final class DefaultStrategies {
             if (entity == null) {
                 return 0d;
             }
-            // 1. 常用字段
-            try {
-                Field f = entity.getClass().getDeclaredField("score");
-                f.setAccessible(true);
-                Object v = f.get(entity);
-                if (v != null) {
-                    return Double.parseDouble(v.toString());
-                }
-            } catch (Exception ignore) {
-                // ignore
+            Double score = getScoreFromEntity(entity);
+            if (score != null) {
+                return score;
             }
-            // 2. Map类型
             if (entity instanceof Map) {
                 Object v = ((Map<?, ?>) entity).get("score");
                 if (v != null) {
                     return Double.parseDouble(v.toString());
                 }
             }
-            // 3. 默认
             return 0d;
         };
+    }
+
+    private static Double getScoreFromEntity(Object entity) {
+        Double score = getScoreFromGetter(entity, "getScore");
+        if (score != null) {
+            return score;
+        }
+        score = getScoreFromGetter(entity, "isScore");
+        if (score != null) {
+            return score;
+        }
+        return getScoreFromPublicField(entity, "score");
+    }
+
+    private static Double getScoreFromGetter(Object entity, String methodName) {
+        try {
+            Method method = entity.getClass().getMethod(methodName);
+            Object v = method.invoke(entity);
+            if (v != null) {
+                return Double.parseDouble(v.toString());
+            }
+        } catch (Exception e) {
+            // ignore
+        } 
+        return null;
+    }
+
+    private static Double getScoreFromPublicField(Object entity, String fieldName) {
+        try {
+            Field field = entity.getClass().getField(fieldName);
+            Object v = field.get(entity);
+            if (v != null) {
+                return Double.parseDouble(v.toString());
+            }
+        } catch (NoSuchFieldException | IllegalAccessException ignore) {
+            // ignore
+        }
+        return null;
     }
 
     /**
@@ -334,9 +367,8 @@ public final class DefaultStrategies {
         return entity -> null;
     }
 
-    // payload helpers for hash 'payload' storage
     /**
-     * Creates a field extractor that serializes the entire entity as a single payload field.
+     * Payload helpers for hash 'payload' storage.
      *
      * @param <T> entity type
      * @return field extractor that stores the entity payload under a single key
@@ -356,7 +388,7 @@ public final class DefaultStrategies {
     }
 
     public static <T> EntityBuilder<T> payloadEntityBuilder(Class<T> clazz) {
-        Objects.requireNonNull(clazz, "clazz must not be null");
+        Objects.requireNonNull(clazz, CLAZZ_NOT_NULL_MESSAGE);
         return fields -> {
             if (fields == null || fields.isEmpty()) {
                 return null;
@@ -373,7 +405,7 @@ public final class DefaultStrategies {
         };
     }
 
-    // Provide a FieldExtractor that converts an object to a Map<String,Object> via Jackson
+    
     /**
      * Creates a field extractor that converts the entity to a map via Jackson reflection.
      *
@@ -383,26 +415,26 @@ public final class DefaultStrategies {
     public static <T> FieldExtractor<T> reflectionFieldExtractor() {
         return entity -> {
             if (entity == null) {
-                return new HashMap<>(0);
+                return Collections.emptyMap();
             }
             try {
                 // serialize via JsonUtil then deserialize into a Map to reuse project's JSON config
                 String json = JsonUtil.serialize(entity);
                
-                Map<String, Object> map = JsonUtil.deserializeBuilder().registerModule(new JavaTimeModule()).deserialize(json, Map.class);
+                Map<?, ?> map = JsonUtil.deserializeBuilder().registerModule(new JavaTimeModule()).deserialize(json, Map.class);
                 // JsonUtil may deserialize JSON `null` values into map entries with null values或
                 // even produce entries with null keys (malformed input). Collectors.toMap(...) and
                 // some downstream code may throw on null keys — be defensive: skip null keys and
                 // preserve null values.
                 if (map == null) {
-                    return new HashMap<>(0);
+                    return Collections.emptyMap();
                 }
                 Map<String, Object> result = new HashMap<>(map.size());
-                for (Map.Entry<String, Object> e : map.entrySet()) {
+                for (Entry<?, ?> e : map.entrySet()) {
                     if (e == null || e.getKey() == null) {
                         continue;
                     }
-                    result.put(e.getKey(), e.getValue());
+                    result.put((String) e.getKey(), e.getValue());
                 }
                 return result;
              } catch (Exception e) {
@@ -411,9 +443,8 @@ public final class DefaultStrategies {
          };
      }
 
-    // Provide an EntityBuilder that converts a Map<Object,Object> (from redis entries) to target class
     /**
-     * Creates an entity builder that reconstructs objects from a map of Redis fields.
+     * Provides an EntityBuilder that converts a Map<Object,Object> (from redis entries) to target class.
      *
      * @param <T> entity type
      * @param clazz target entity type
@@ -445,19 +476,7 @@ public final class DefaultStrategies {
      * Default KeyPrefixProvider: append entity simple name to global prefix (legacy behaviour).
      */
     public static RedisRepositoryConfig.KeyPrefixProvider defaultKeyPrefixProvider() {
-        return (clazz, globalPrefix) -> {
-            String gp = globalPrefix == null ? "" : globalPrefix;
-            String entityName = (clazz == null) ? "Entity" : clazz.getSimpleName();
-            StringBuilder sb = new StringBuilder();
-            if (!gp.isEmpty()) {
-                sb.append(gp);
-                if (!gp.endsWith(COLON)) {
-                    sb.append(COLON);
-                }
-            }
-            sb.append(entityName).append(COLON);
-            return sb.toString();
-        };
+        return (clazz, globalPrefix) -> buildKeyPrefix(null, null, clazz, globalPrefix);
     }
 
     /**
@@ -467,25 +486,32 @@ public final class DefaultStrategies {
      * @return KeyPrefixProvider 实例
      */
     public static RedisRepositoryConfig.KeyPrefixProvider enterpriseKeyPrefixProvider(String env, TenantProvider tenantProvider) {
-        return (clazz, globalPrefix) -> {
-            StringBuilder sb = new StringBuilder();
-            if (env != null && !env.isEmpty()) {
-                sb.append(env).append(":");
+        return (clazz, globalPrefix) -> buildKeyPrefix(env, tenantProvider == null ? null : tenantProvider.getTenantId(), clazz, globalPrefix);
+    }
+
+    private static String buildKeyPrefix(String env, String tenant, Class<?> clazz, String globalPrefix) {
+        StringBuilder sb = new StringBuilder();
+        appendSegment(sb, env);
+        appendSegment(sb, tenant);
+        appendGlobalPrefix(sb, globalPrefix);
+        String entityName = (clazz == null) ? "Entity" : clazz.getSimpleName();
+        sb.append(entityName).append(COLON);
+        return sb.toString();
+    }
+
+    private static void appendSegment(StringBuilder sb, String value) {
+        if (value != null && !value.isEmpty()) {
+            sb.append(value).append(COLON);
+        }
+    }
+
+    private static void appendGlobalPrefix(StringBuilder sb, String globalPrefix) {
+        if (globalPrefix != null && !globalPrefix.isEmpty()) {
+            sb.append(globalPrefix);
+            if (!globalPrefix.endsWith(COLON)) {
+                sb.append(COLON);
             }
-            String tenant = tenantProvider == null ? null : tenantProvider.getTenantId();
-            if (tenant != null && !tenant.isEmpty()) {
-                sb.append(tenant).append(":");
-            }
-            if (globalPrefix != null && !globalPrefix.isEmpty()) {
-                sb.append(globalPrefix);
-                if (!globalPrefix.endsWith(COLON)) {
-                    sb.append(COLON);
-                }
-            }
-            String entityPart = (clazz == null) ? "Entity" : clazz.getSimpleName();
-            sb.append(entityPart).append(COLON);
-            return sb.toString();
-        };
+        }
     }
 
     /**

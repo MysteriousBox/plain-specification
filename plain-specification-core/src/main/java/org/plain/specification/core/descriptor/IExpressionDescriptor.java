@@ -8,8 +8,6 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
  *
  * @author Jayden.Liang
  */
-
-
 public interface IExpressionDescriptor<T> {
 
     /**

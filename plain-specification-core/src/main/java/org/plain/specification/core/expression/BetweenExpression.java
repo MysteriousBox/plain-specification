@@ -6,13 +6,8 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 /**
  * between expression
  * @author Jayden.Liang
- * @param <T>
- * @param <V>
- */
-/**
- * Class BetweenExpression.
- *
- * @author Jayden.Liang
+ * @param <T> the type of the entity
+ * @param <V> the type of the value, must be comparable
  */
 @Getter
 public class BetweenExpression <T, V extends Comparable<V>> implements IExpression<T>{

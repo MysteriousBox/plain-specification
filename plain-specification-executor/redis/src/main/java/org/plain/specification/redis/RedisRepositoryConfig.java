@@ -16,15 +16,9 @@ import java.util.concurrent.Executor;
  * @author Jayden.Liang
  * @since 1.0
  */
-/**
- * Class RedisRepositoryConfig.
- *
- * @author Jayden.Liang
- */
 @Getter
 @EqualsAndHashCode
 @ToString
-@SuppressWarnings("unused")
 public final class RedisRepositoryConfig<T, TID> {
 
     private static final String KEY_SEPARATOR = ":";
@@ -111,7 +105,6 @@ public final class RedisRepositoryConfig<T, TID> {
      * 创建 Builder 的入口方法。
      * <p>对外公开作为库的工厂方法（可能由外部模块使用），因此保留为 public。</p>
      */
-    @SuppressWarnings("unused")
     public static <T, TID> Builder<T, TID> builder() {
         return new Builder<>();
     }
@@ -131,13 +124,13 @@ public final class RedisRepositoryConfig<T, TID> {
      * </p>
      */
     public static class Builder<T, TID> {
-        private long defaultTtl = 60 * 60; // 1 hour
+        private long defaultTtl = 60L * 60; // 1 hour
         private int batchSize = 100;
         private Serializer<T> serializer;
         private Deserializer<T> deserializer;
         private IdExtractor<T, TID> idExtractor;
-        private ScoreProvider<T> scoreProvider = (e) -> 0d;
-        private TtlProvider<T> ttlProvider = (e) -> null;
+        private ScoreProvider<T> scoreProvider = e -> 0d;
+        private TtlProvider<T> ttlProvider = e -> null;
         private Executor asyncExecutor = null;
         private FieldExtractor<T> fieldExtractor;
         private FieldValueSerializer fieldValueSerializer;

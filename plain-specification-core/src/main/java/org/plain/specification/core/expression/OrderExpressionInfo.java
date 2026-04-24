@@ -12,9 +12,6 @@ import java.util.Comparator;
  *
  * @author Jayden.Liang
  */
-
-
-
 public class OrderExpressionInfo<T> implements IExpressionDescriptor<T> {
 
     private Comparator<T> keySelectorFunc;

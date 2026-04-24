@@ -7,8 +7,6 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
  *
  * @author Jayden.Liang
  */
-
-
 public class LessThanOrEqualExpression <T,V extends Comparable<V>> extends BinaryExpression<T, V> {
 
     public LessThanOrEqualExpression(SFunction<T, V> left,V right) {

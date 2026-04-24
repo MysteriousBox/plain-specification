@@ -164,6 +164,7 @@ public class RedisRepositoryConfigResolver {
 
     // --- helper cast methods: localize unchecked casts and document why they're safe ---
 
+    @SuppressWarnings("unchecked")
     private static <T, I> RedisRepositoryConfig<T, I> castConfig(RedisRepositoryConfig<?, ?> cfg) {
         // The cache is now keyed by entity Class and fullZsetKey. Values stored for a
         // given Class were constructed by buildConfig(entityClass,...), so the runtime
@@ -172,22 +173,27 @@ public class RedisRepositoryConfigResolver {
         return (RedisRepositoryConfig<T, I>) cfg;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> Serializer<T> castSerializer(Serializer<?> s) {
         return (Serializer<T>) s;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> ScoreProvider<T> castScoreProvider(ScoreProvider<?> p) {
         return (ScoreProvider<T>) p;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> TtlProvider<T> castTtlProvider(TtlProvider<?> p) {
         return (TtlProvider<T>) p;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> FieldExtractor<T> castFieldExtractor(FieldExtractor<?> f) {
         return (FieldExtractor<T>) f;
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> EntityBuilder<T> castEntityBuilder(EntityBuilder<?> b) {
         return (EntityBuilder<T>) b;
     }

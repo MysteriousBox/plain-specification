@@ -10,8 +10,6 @@ import java.util.Collection;
  *
  * @author Jayden.Liang
  */
-
-
 public class PageResultAdapter<T> implements IPageResult<T> {
 
     private final IPage<T> page;

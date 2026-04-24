@@ -14,9 +14,12 @@ import java.util.Comparator;
  */
 
 
+@SuppressWarnings("squid:S1602")
 public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T, QueryWrapper<T>> {
 
-//    private Class<T> entityClass;
+    /**
+     * MyBatis-Plus query wrapper.
+     */
     private final QueryWrapper<T> wrapper ;
 
     public MybatisplusExpressionVisitor() {

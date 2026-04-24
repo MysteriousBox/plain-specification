@@ -7,7 +7,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Specification interface
@@ -53,7 +53,7 @@ public interface ISpecification<T> {
      *
      * @return post-processing function or null
      */
-    Function<Collection<T>, Collection<T>> postProcessingAction();
+    UnaryOperator<Collection<T>> postProcessingAction();
 
     /**
      * Returns current where expressions.

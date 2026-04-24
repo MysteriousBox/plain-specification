@@ -8,9 +8,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author Jayden.Liang
  */
-
-
 public class FieldMappingRegistry {
+
+
+    private FieldMappingRegistry() {
+        /* This utility class should not be instantiated */
+    }
 
     /**
      * Registry of domain-to-PO field mappings keyed by domain class name.
