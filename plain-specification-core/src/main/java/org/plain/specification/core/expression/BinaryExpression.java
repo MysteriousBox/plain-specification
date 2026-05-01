@@ -11,7 +11,7 @@ import lombok.Getter;
  * @param <V> 值类型
  */
 @Getter
-@SuppressWarnings({"AlibabaAbstractClassShouldStartWithAbstractNamingRule", "AbstractClassShouldStartWithAbstractNamingRule"})
+@SuppressWarnings({"AbstractClassShouldStartWithAbstractNamingRule"})
 public abstract class BinaryExpression<T,V extends Comparable<V>> implements IExpression<T>{
 
     private final SFunction<T, V> left;

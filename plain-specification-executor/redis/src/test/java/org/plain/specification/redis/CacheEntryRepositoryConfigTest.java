@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.plain.utils.JsonUtil;
+import org.mockito.ArgumentMatchers;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -16,8 +17,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 /**
@@ -178,11 +177,11 @@ class CacheEntryRepositoryConfigTest {
         CacheEntry<User> entry = new CacheEntry<>("user:1", new User("1", "Alice"), metadata);
 
         // Mock save
-        when(redisTemplate.execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L);
+        when(redisTemplate.execute(ArgumentMatchers.<RedisScript<Long>>any(), ArgumentMatchers.<java.util.List<String>>any(), ArgumentMatchers.<Object[]>any())).thenReturn(1L);
 
         CacheEntry<User> saved = repo.save(entry);
         assertNotNull(saved);
-        verify(redisTemplate, atLeastOnce()).execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class));
+        verify(redisTemplate, atLeastOnce()).execute(ArgumentMatchers.<RedisScript<Long>>any(), ArgumentMatchers.<java.util.List<String>>any(), ArgumentMatchers.<Object[]>any());
 
         // Mock findById
         Map<String, String> entries = new HashMap<>();

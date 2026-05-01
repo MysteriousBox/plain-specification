@@ -91,11 +91,11 @@ class GenericRedisRepositoryTest {
         when(zSetOps.range("users:zset", 0L, 0L)).thenReturn(Collections.singleton("1"));
         String userJson = JsonUtil.serialize(u);
         when(valueOps.multiGet(ArgumentMatchers.<java.util.Collection<String>>any())).thenReturn(Collections.singletonList(userJson));
-        when(redisTemplate.execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class))).thenReturn(1L); // mock execute to return success
+        when(redisTemplate.execute(ArgumentMatchers.<RedisScript<Long>>any(), ArgumentMatchers.<java.util.List<String>>any(), ArgumentMatchers.<Object[]>any())).thenReturn(1L); // mock execute to return success
 
         User saved = repo.save(u);
         assertNotNull(saved);
-        verify(redisTemplate, atLeastOnce()).execute((RedisScript<Long>) any(RedisScript.class), anyList(), any(Object[].class));
+        verify(redisTemplate, atLeastOnce()).execute(ArgumentMatchers.<RedisScript<Long>>any(), ArgumentMatchers.<java.util.List<String>>any(), ArgumentMatchers.<Object[]>any());
 
         User found = repo.findById("1");
         assertNotNull(found);
