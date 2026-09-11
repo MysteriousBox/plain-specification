@@ -19,6 +19,8 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
 
     protected final Specification<T> specification;
 
+    private boolean chainDiscarded = false;
+
     public SpecificationBuilder(Specification<T> specification) {
         this.specification = specification;
     }
@@ -55,7 +57,7 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
                     new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
         }
-        Specification.setIsChainDiscarded(!condition);
+        this.chainDiscarded = !condition;
         return this;
     }
 
@@ -71,7 +73,7 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
                     OrderTypeEnum.OrderByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
         }
-        Specification.setIsChainDiscarded(!condition);
+        this.chainDiscarded = !condition;
         return this;
     }
 
@@ -82,12 +84,12 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
 
     @Override
     public IOrderedSpecificationBuilder<T> thenBy(Expressions<T> expression, boolean condition) {
-        if (condition && !Specification.getChainDiscarded()) {
+        if (condition && !this.chainDiscarded) {
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression, OrderTypeEnum.ThenBy,
                     new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
-        } else if (condition && Specification.getChainDiscarded()) {
-            Specification.setIsChainDiscarded(true);
+        } else {
+            this.chainDiscarded = true;
         }
         return this;
     }
@@ -99,12 +101,12 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
 
     @Override
     public IOrderedSpecificationBuilder<T> thenByDescending(Expressions<T> expression, boolean condition) {
-        if (condition && !Specification.getChainDiscarded()) {
+        if (condition && !this.chainDiscarded) {
             OrderExpressionInfo<T> orderExpressionInfo = new OrderExpressionInfo<>(expression,
                     OrderTypeEnum.ThenByDescending, new OrderExpressionVisitor<>());
             specification.add(orderExpressionInfo);
         } else {
-            Specification.setIsChainDiscarded(true);
+            this.chainDiscarded = true;
         }
         return this;
     }

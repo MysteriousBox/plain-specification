@@ -48,7 +48,7 @@ public class OrderExpressionInfo<T> implements IExpressionDescriptor<T> {
     }
 
     @Override
-    public Expressions<T> getExceptions() {
+    public Expressions<T> getExpressions() {
         return this.keySelector;
     }
 

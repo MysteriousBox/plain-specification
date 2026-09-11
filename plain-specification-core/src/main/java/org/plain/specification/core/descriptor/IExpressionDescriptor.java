@@ -24,5 +24,5 @@ public interface IExpressionDescriptor<T> {
      *
      * @return expression wrapper
      */
-    Expressions<T> getExceptions();
+    Expressions<T> getExpressions();
 }

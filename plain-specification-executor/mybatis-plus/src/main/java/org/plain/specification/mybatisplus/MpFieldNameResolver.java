@@ -1,6 +1,7 @@
 package org.plain.specification.mybatisplus;
 
 
+import org.plain.specification.core.expression.LambdaUtil;
 import org.plain.specification.core.expression.SFunction;
 
 import java.io.Serializable;
@@ -19,24 +20,12 @@ public class MpFieldNameResolver {
         /* This utility class should not be instantiated */
     }
 
-
-    private static final String GET_PREFIX = "get";
-    private static final String IS_PREFIX = "is";
-
     public static <T> String resolve(SFunction<T, ?> func) {
-        SerializedLambda lambda = serialize(func);
-        return resolve(lambda);
+        return LambdaUtil.getPropertyName(func);
     }
 
     public static String resolve(SerializedLambda lambda) {
-        String methodName = lambda.getImplMethodName();
-        // 转换 getter 方法名 -> 属性名
-        if (methodName.startsWith(GET_PREFIX)) {
-            methodName = methodName.substring(GET_PREFIX.length());
-        } else if (methodName.startsWith(IS_PREFIX)) {
-            methodName = methodName.substring(IS_PREFIX.length());
-        }
-        return Character.toLowerCase(methodName.charAt(0)) + methodName.substring(1);
+        return LambdaUtil.getPropertyName(lambda);
     }
 
     public static Class<?> getDomainClass(SerializedLambda lambda) {
@@ -52,8 +41,6 @@ public class MpFieldNameResolver {
     public static SerializedLambda serialize(Serializable lambda) {
         try {
             Method write = lambda.getClass().getDeclaredMethod("writeReplace");
-            // 反射访问私有方法是必要的
-            // NOSONAR
             write.setAccessible(true);
             return (SerializedLambda) write.invoke(lambda);
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {

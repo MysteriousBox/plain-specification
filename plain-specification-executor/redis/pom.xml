@@ -69,7 +69,7 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.plain.utils</groupId>
+            <groupId>org.plain</groupId>
             <artifactId>plain-utils</artifactId>
         </dependency>
         <!-- Jackson JavaTime module for java.time types (LocalDateTime etc.) -->

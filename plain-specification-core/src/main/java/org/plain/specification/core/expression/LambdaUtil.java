@@ -21,8 +21,12 @@ public class LambdaUtil {
     private static final String GET_PREFIX = "get";
     private static final String IS_PREFIX = "is";
 
-    public static String getFileName(Serializable lambda) {
+    public static String getPropertyName(Serializable lambda) {
         SerializedLambda func = getSerializedLambda(lambda);
+        return getPropertyName(func);
+    }
+
+    public static String getPropertyName(SerializedLambda func) {
         String methodName = func.getImplMethodName();
         if (methodName.startsWith(GET_PREFIX)){
             return StringUtils.uncapitalize(methodName.substring(GET_PREFIX.length()));

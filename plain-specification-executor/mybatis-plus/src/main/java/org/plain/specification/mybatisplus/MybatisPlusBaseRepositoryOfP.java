@@ -11,20 +11,20 @@ import org.plain.specification.core.IPageResult;
 import org.plain.specification.core.ISpecification;
 import org.plain.specification.core.PageQuery;
 import org.plain.specification.core.descriptor.IExpressionDescriptor;
+import org.plain.specification.core.expression.*;
 import org.plain.specification.core.expression.OrderExpressionInfo;
-import org.plain.specification.mybatisplus.config.AsyncConstant;
+import org.plain.specification.core.spi.ISpecificationExecutor;
+import org.plain.specification.core.visitor.IExpressionVisitor;
 import org.plain.utils.converter.IConverter;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
-import static org.springframework.transaction.annotation.Propagation.REQUIRES_NEW;
+import java.util.concurrent.Executor;
 
 /**
  * Mybatis plus 基础 repository
@@ -34,15 +34,35 @@ import static org.springframework.transaction.annotation.Propagation.REQUIRES_NE
  */
 @SuppressWarnings({"AlibabaAbstractClassShouldStartWithAbstractNamingRule", "AbstractClassShouldStartWithAbstractNamingRule"})
 @Slf4j
-public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable> implements IBaseRepository<T,TID> {
+public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable> implements IBaseRepository<T,TID>, ISpecificationExecutor<T> {
 
     protected final BaseMapper<P> baseMapper;
     protected final IConverter<T,P> converter;
+    private final Executor executor;
+    private final TransactionTemplate transactionTemplate;
 
     public MybatisPlusBaseRepositoryOfP(BaseMapper<P> baseMapper,
-                                        IConverter<T, P> converter) {
+                                        IConverter<T, P> converter,
+                                        Executor executor) {
         this.baseMapper = baseMapper;
         this.converter = converter;
+        this.executor = executor;
+        this.transactionTemplate = null;
+    }
+
+    public MybatisPlusBaseRepositoryOfP(BaseMapper<P> baseMapper,
+                                        IConverter<T, P> converter,
+                                        Executor executor,
+                                        PlatformTransactionManager transactionManager) {
+        this.baseMapper = baseMapper;
+        this.converter = converter;
+        this.executor = executor;
+        if (transactionManager != null) {
+            this.transactionTemplate = new TransactionTemplate(transactionManager);
+            this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+        } else {
+            this.transactionTemplate = null;
+        }
     }
 
     @Override
@@ -57,7 +77,6 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
     public CompletableFuture<T> saveAsync(T entity) {
         return CompletableFuture.supplyAsync(() -> {
             try{
@@ -72,18 +91,23 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
                 log.error("Failed to save entity ",e);
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities) {
-        return CompletableFuture.supplyAsync(()->{
+        return CompletableFuture.supplyAsync(() -> {
+            if (transactionTemplate != null) {
+                return transactionTemplate.execute(status -> {
+                    Collection<P> poList = converter.convert(entities);
+                    baseMapper.insert(poList);
+                    return converter.reverse(poList);
+                });
+            }
             Collection<P> poList = converter.convert(entities);
             baseMapper.insert(poList);
             return converter.reverse(poList);
-        });
+        }, executor);
     }
 
     @Override
@@ -93,7 +117,6 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
     public CompletableFuture<Void> updateAsync(T entity) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -102,21 +125,26 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
             }catch (Exception e){
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> updateRangeAsync(Collection<T> entities) {
-        return CompletableFuture.runAsync(()->{
-            try{
-                Collection<P> poList = converter.convert(entities);
-                baseMapper.updateById(poList);
-            }catch (Exception e){
+        return CompletableFuture.runAsync(() -> {
+            try {
+                if (transactionTemplate != null) {
+                    transactionTemplate.executeWithoutResult(status -> {
+                        Collection<P> poList = converter.convert(entities);
+                        baseMapper.updateById(poList);
+                    });
+                } else {
+                    Collection<P> poList = converter.convert(entities);
+                    baseMapper.updateById(poList);
+                }
+            } catch (Exception e) {
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -136,7 +164,6 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
     public CompletableFuture<Void> deleteAsync(T entity) {
         return CompletableFuture.runAsync(()->{
             try{
@@ -145,31 +172,45 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
             }catch (Exception e){
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(Collection<T> entities) {
-        return CompletableFuture.runAsync(()->{
-            try{
-                Collection<P> poList = converter.convert(entities);
-                baseMapper.deleteByIds(poList);
-            }catch (Exception e){
+        return CompletableFuture.runAsync(() -> {
+            try {
+                if (transactionTemplate != null) {
+                    transactionTemplate.executeWithoutResult(status -> {
+                        Collection<P> poList = converter.convert(entities);
+                        baseMapper.deleteByIds(poList);
+                    });
+                } else {
+                    Collection<P> poList = converter.convert(entities);
+                    baseMapper.deleteByIds(poList);
+                }
+            } catch (Exception e) {
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
-    @Async(AsyncConstant.THREAD_POOL_TASK_EXECUTOR_NAME)
-    @Transactional(propagation = REQUIRES_NEW, rollbackFor = Exception.class)
     public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
-        return CompletableFuture.runAsync(()->{
-            QueryWrapper<P> queryWrapper = compileToPo(specification);
-            baseMapper.delete(queryWrapper);
-        });
+        return CompletableFuture.runAsync(() -> {
+            try {
+                if (transactionTemplate != null) {
+                    transactionTemplate.executeWithoutResult(status -> {
+                        QueryWrapper<P> queryWrapper = compileToPo(specification);
+                        baseMapper.delete(queryWrapper);
+                    });
+                } else {
+                    QueryWrapper<P> queryWrapper = compileToPo(specification);
+                    baseMapper.delete(queryWrapper);
+                }
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }, executor);
     }
 
     @Override
@@ -182,7 +223,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
     }
 
     @Override
-    public  CompletableFuture<T> findByIdAsync(TID id) {
+    public CompletableFuture<T> findByIdAsync(TID id) {
         return CompletableFuture.supplyAsync(()->{
             try {
                 P po = baseMapper.selectById(id);
@@ -193,7 +234,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     private QueryWrapper<P> compileToPo(ISpecification<T> specification) {
@@ -208,20 +249,19 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
         return queryWrapper;
     }
 
-
-
     @Override
     public T findOne(ISpecification<T> specification) {
         P po = baseMapper.selectOne(compileToPo(specification));
+        if (po == null) {
+            return null;
+        }
         return converter.reverse(po);
     }
 
     @Override
     public CompletableFuture<T> findOneAsync(ISpecification<T> specification) {
-        return CompletableFuture.supplyAsync(() -> findOne(specification));
+        return CompletableFuture.supplyAsync(() -> findOne(specification), executor);
     }
-
-
 
     @Override
     public Collection<T> findRange(ISpecification<T> specification) {
@@ -232,12 +272,11 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     public CompletableFuture<Collection<T>> findRangeAsync(ISpecification<T> specification) {
-
         return CompletableFuture.supplyAsync(()->{
             QueryWrapper<P> pQueryWrapper = compileToPo(specification);
             List<P> pList = baseMapper.selectList(pQueryWrapper);
             return converter.reverse(pList);
-        });
+        }, executor);
     }
 
     @Override
@@ -248,11 +287,10 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
 
     @Override
     public CompletableFuture<Long> countAsync(ISpecification<T> specification) {
-
         return CompletableFuture.supplyAsync(()->{
             QueryWrapper<P> pQueryWrapper = compileToPo(specification);
             return baseMapper.selectCount(pQueryWrapper);
-        });
+        }, executor);
     }
 
     @Override
@@ -264,5 +302,51 @@ public abstract class MybatisPlusBaseRepositoryOfP<T,P,TID extends Serializable>
         Page<T> tPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
         tPage.setRecords(new ArrayList<>(records));
         return new PageResultAdapter<>(tPage);
+    }
+
+    // -------------------------------------------------------------------------
+    // ISpecificationExecutor SPI
+    // -------------------------------------------------------------------------
+
+    @Override
+    public IExpressionVisitor<T, ?> getVisitor() {
+        return new MybatisplusEntityToPoVisitor<>();
+    }
+
+    @Override
+    public List<T> execute(ISpecification<T> specification) {
+        return new ArrayList<>(findRange(specification));
+    }
+
+    @Override
+    public IPageResult<T> execute(ISpecification<T> specification, PageQuery pageQuery) {
+        return page(specification, pageQuery);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void addExpressionType(Set<Class<? extends IExpression<T>>> types, Class<?> clazz) {
+        types.add((Class<? extends IExpression<T>>) clazz);
+    }
+
+    @Override
+    public Set<Class<? extends IExpression<T>>> supportedExpressions() {
+        Set<Class<? extends IExpression<T>>> types = new LinkedHashSet<>();
+        addExpressionType(types, EqualExpression.class);
+        addExpressionType(types, NotEqualExpression.class);
+        addExpressionType(types, GreaterThanExpression.class);
+        addExpressionType(types, LessThanExpression.class);
+        addExpressionType(types, GreaterThanOrEqualExpression.class);
+        addExpressionType(types, LessThanOrEqualExpression.class);
+        addExpressionType(types, InExpression.class);
+        addExpressionType(types, NotInExpression.class);
+        addExpressionType(types, BetweenExpression.class);
+        addExpressionType(types, LikeExpression.class);
+        addExpressionType(types, IsNullExpression.class);
+        addExpressionType(types, IsNotNullExpression.class);
+        addExpressionType(types, AndExpression.class);
+        addExpressionType(types, OrExpression.class);
+        addExpressionType(types, NotExpression.class);
+        addExpressionType(types, OrderExpression.class);
+        return Collections.unmodifiableSet(types);
     }
 }

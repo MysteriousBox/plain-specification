@@ -9,11 +9,16 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 默认策略实现集合，使用项目封装的 JsonUtil 进行序列化/反序列化，使用反射尝试获取 id 字段/方法。
@@ -442,6 +447,71 @@ public final class DefaultStrategies {
              }
          };
      }
+
+    private static final ConcurrentHashMap<Class<?>, List<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Creates a fast field extractor that uses direct Java reflection instead of JSON round-trip.
+     * <p>
+     * Compared to {@link #reflectionFieldExtractor()}, this is significantly faster but does not
+     * support Jackson getter-based properties ({@code @JsonGetter}). It does respect
+     * {@code @JsonProperty} for field naming. Fields are cached per class for performance.
+     * </p>
+     *
+     * @param <T> entity type
+     * @return field extractor that uses direct reflection
+     */
+    public static <T> FieldExtractor<T> fastReflectionFieldExtractor() {
+        return entity -> {
+            if (entity == null) {
+                return Collections.emptyMap();
+            }
+            final Class<?> clazz = entity.getClass();
+            final List<Field> fields = FIELD_CACHE.computeIfAbsent(clazz, DefaultStrategies::collectFields);
+            final Map<String, Object> result = new HashMap<>(fields.size());
+            for (Field field : fields) {
+                try {
+                    final String name = resolveFieldName(field);
+                    final Object value = field.get(entity);
+                    result.put(name, value);
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException("Failed to access field: " + field.getName(), e);
+                }
+            }
+            return result;
+        };
+    }
+
+    private static List<Field> collectFields(Class<?> clazz) {
+        final Map<String, Field> fieldMap = new LinkedHashMap<>();
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                final int modifiers = field.getModifiers();
+                if (Modifier.isStatic(modifiers) || Modifier.isTransient(modifiers) || field.isSynthetic()) {
+                    continue;
+                }
+                fieldMap.putIfAbsent(field.getName(), field);
+            }
+            current = current.getSuperclass();
+        }
+        final List<Field> fields = new ArrayList<>(fieldMap.values());
+        for (Field field : fields) {
+            field.setAccessible(true);
+        }
+        return fields;
+    }
+
+    private static String resolveFieldName(Field field) {
+        final JsonProperty jsonProperty = field.getAnnotation(JsonProperty.class);
+        if (jsonProperty != null) {
+            final String value = jsonProperty.value();
+            if (value != null && !value.isEmpty()) {
+                return value;
+            }
+        }
+        return field.getName();
+    }
 
     /**
      * Provides an EntityBuilder that converts a Map<Object,Object> (from redis entries) to target class.

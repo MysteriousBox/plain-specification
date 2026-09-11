@@ -1,9 +1,11 @@
 package org.plain.specification.redis;
 
 import org.plain.specification.core.*;
+import org.plain.specification.core.spi.ISpecificationExecutor;
 import org.plain.utils.JsonUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -11,7 +13,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
-import java.util.logging.Logger;
 
 /**
  * Redis 通用仓储抽象基类（ZSET + per-entity HASH 存储）。
@@ -38,8 +39,8 @@ import java.util.logging.Logger;
  * @author Jayden.Liang
  * @since 1.0
  */
-public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, TID> {
-    private static final Logger logger = Logger.getLogger(BaseRedisRepository.class.getName());
+@Slf4j
+public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, TID>, ISpecificationExecutor<T> {
 
     private static final String ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL = "id from ZSet range must not be null";
     private static final String LUA_SAVE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL = "LUA_SAVE_PER_ENTITY_SCRIPT must not be null";
@@ -517,11 +518,25 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
      * @since 1.0
      */
     private List<Map<Object, Object>> multiGetHashes(List<String> keyList) {
-        final List<Map<Object, Object>> list = new ArrayList<>(keyList.size());
-        for (String k : keyList) {
-            final String actualKey = Objects.requireNonNull(k, "hash key must not be null");
-            final Map<Object, Object> m = redisTemplate.opsForHash().entries(actualKey);
-            list.add(m.isEmpty() ? null : m);
+        if (keyList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Object> results = redisTemplate.executePipelined(
+            new org.springframework.data.redis.core.SessionCallback<Object>() {
+                @Override
+                @SuppressWarnings("unchecked")
+                public <K, V> Object execute(org.springframework.data.redis.core.RedisOperations<K, V> operations) {
+                    for (String k : keyList) {
+                        operations.opsForHash().entries((K) k);
+                    }
+                    return null;
+                }
+            });
+        List<Map<Object, Object>> list = new ArrayList<>(results.size());
+        for (Object result : results) {
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> m = (Map<Object, Object>) result;
+            list.add(m == null || m.isEmpty() ? null : m);
         }
         return list;
     }
@@ -541,7 +556,7 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         try {
             return builder.buildEntity(fields);
         } catch (Exception ex) {
-            logger.warning("Failed to build entity from hash fields for key: " + redisKey + ", " + ex.getMessage());
+            log.warn("Failed to build entity from hash fields for key: {}, {}", redisKey, ex.getMessage());
             return null;
         }
     }
@@ -568,7 +583,7 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
                     results.add(entity);
                 }
             } catch (Exception ex) {
-                logger.warning("Failed to build entity: " + ex.getMessage());
+                log.warn("Failed to build entity: {}", ex.getMessage());
             }
         }
         return results;
@@ -768,16 +783,13 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalArgumentException("Page size must be greater than 0, actual: " + pageQuery.getPageSize());
         }
 
-        final String key = Objects.requireNonNull(zSetKey());
-        final long start = (long) (pageQuery.getPage() - 1) * pageQuery.getPageSize();
-        final long end = start + pageQuery.getPageSize() - 1;
-        final Collection<T> entities = findRangeWithBatch(specification, start, end);
-
-        Long total = redisTemplate.opsForZSet().size(key);
-        if (total == null) {
-            total = 0L;
-        }
-        return new RedisPageResultAdapter<>(entities, pageQuery, total);
+        final Collection<T> allMatched = findRangeWithBatch(specification, 0, -1);
+        final List<T> matchedList = new ArrayList<>(allMatched);
+        final long total = matchedList.size();
+        final int fromIndex = (int) Math.min((long) (pageQuery.getPage() - 1) * pageQuery.getPageSize(), total);
+        final int toIndex = (int) Math.min((long) fromIndex + pageQuery.getPageSize(), total);
+        final List<T> pageRecords = matchedList.subList(fromIndex, toIndex);
+        return new RedisPageResultAdapter<>(pageRecords, pageQuery, total);
     }
 
     protected final String serialize(T entity) {
@@ -893,14 +905,14 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
                     return s;
                 }
             } catch (Exception ex) {
-                logger.warning("Failed to serialize field value with FieldValueSerializer: " + ex.getMessage());
+                log.warn("Failed to serialize field value with FieldValueSerializer: {}", ex.getMessage());
                 // fallback to default JsonUtil below
             }
         }
         try {
             return JsonUtil.serialize(value);
         } catch (Exception ex) {
-            logger.warning("Failed to serialize field value with JsonUtil: " + ex.getMessage());
+            log.warn("Failed to serialize field value with JsonUtil: {}", ex.getMessage());
             // Last resort: use toString()
             return String.valueOf(value);
         }
@@ -916,6 +928,48 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
     public long count() {
         Long total = redisTemplate.opsForZSet().size(Objects.requireNonNull(zSetKey()));
         return total == null ? 0L : total;
+    }
+
+    // -------------------------------------------------------------------------
+    // ISpecificationExecutor SPI — Redis 当前不支持表达式下推，全部降级为内存过滤
+    // -------------------------------------------------------------------------
+
+    /**
+     * Redis 执行器当前不支持将表达式下推为 Redis 命令，返回 {@code null}。
+     * 所有查询均通过批量扫描 + 内存 {@code isSatisfiedBy()} 过滤完成。
+     *
+     * @return {@code null}
+     */
+    @Override
+    public org.plain.specification.core.visitor.IExpressionVisitor<T, ?> getVisitor() {
+        return null;
+    }
+
+    /**
+     * 执行查询，委托给 {@link #findRange(ISpecification)} 并将结果转为 List。
+     */
+    @Override
+    public List<T> execute(ISpecification<T> specification) {
+        return new ArrayList<>(findRange(specification));
+    }
+
+    /**
+     * 执行分页查询，委托给 {@link #page(ISpecification, PageQuery)}。
+     */
+    @Override
+    public IPageResult<T> execute(ISpecification<T> specification, PageQuery pageQuery) {
+        return page(specification, pageQuery);
+    }
+
+    /**
+     * Redis 执行器当前不支持任何表达式下推，返回空集合。
+     * 所有查询均通过内存过滤完成。
+     *
+     * @return 空集合
+     */
+    @Override
+    public Set<Class<? extends org.plain.specification.core.expression.IExpression<T>>> supportedExpressions() {
+        return Collections.emptySet();
     }
 }
 

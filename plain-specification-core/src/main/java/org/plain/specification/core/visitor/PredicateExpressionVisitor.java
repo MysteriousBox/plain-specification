@@ -96,10 +96,10 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
     @Override
     public <V extends Comparable<V>> Predicate<T> visitNotEqual(NotEqualExpression<T, V> expression) {
         return t -> {
-            if (expression.getLeft().apply(t) != null&& !expression.getLeft().apply(t).equals(expression.getRight())) {
-                return Boolean.TRUE;
-            }
-            return Boolean.FALSE;
+            V leftVal = expression.getLeft().apply(t);
+            V rightVal = expression.getRight();
+            if (leftVal == null || rightVal == null) return Boolean.FALSE;
+            return leftVal.equals(rightVal) ? Boolean.FALSE : Boolean.TRUE;
         };
     }
 
@@ -115,14 +115,22 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
 
     @Override
     public <V extends Comparable<V>> Predicate<T> visitBetween(BetweenExpression<T, V> expression) {
-        return t-> expression.getLeft().apply(t).compareTo(expression.getLowerBound()) >= 0 && expression.getLeft().apply(t).compareTo(expression.getUpperBound()) <= 0;
+        return t -> {
+            V value = expression.getLeft().apply(t);
+            if (value == null || expression.getLowerBound() == null || expression.getUpperBound() == null) {
+                throw new IllegalArgumentException("value, lowerBound and upperBound can not be null");
+            }
+            return value.compareTo(expression.getLowerBound()) >= 0
+                    && value.compareTo(expression.getUpperBound()) <= 0;
+        };
     }
 
     @Override
     public Predicate<T> visitLike(LikeExpression<T> expression) {
         String pattern = convertLikePatternToRegex(expression.getRight());
-        return t-> {
+        return t -> {
             String value = expression.getLeft().apply(t);
+            if (value == null) return Boolean.FALSE;
             return value.matches(pattern);
         };
     }
@@ -142,7 +150,7 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
 
         return t -> {
             Collection<E> subqueryProvider = expression.getLeft().apply(t);
-            if (subqueryProvider.isEmpty()){
+            if (subqueryProvider == null || subqueryProvider.isEmpty()){
                 return Boolean.FALSE;
             }
             return subqueryProvider.stream().anyMatch(expression.getRight().accept(new PredicateExpressionVisitor<>()));
@@ -153,7 +161,7 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
     public <E> Predicate<T> visitNotExists(NotExistsExpression<T, E> expression) {
         return t -> {
             Collection<E> subqueryProvider = expression.getLeft().apply(t);
-            if (subqueryProvider.isEmpty()){
+            if (subqueryProvider == null || subqueryProvider.isEmpty()){
                 return Boolean.TRUE;
             }
             return subqueryProvider.stream().noneMatch(expression.getExpression().accept(new PredicateExpressionVisitor<>()));

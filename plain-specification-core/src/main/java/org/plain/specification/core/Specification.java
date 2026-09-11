@@ -34,8 +34,6 @@ public class Specification<T> implements ISpecification<T>{
 
     private ISpecificationEvaluator evaluator = InMemorySpecificationEvaluator.DEFAULT;
 
-    private static final ThreadLocal<Boolean> CHAIN_DISCARDED = ThreadLocal.withInitial(() -> false);
-
     protected void setEvaluator(ISpecificationEvaluator evaluator) {
         this.evaluator = evaluator;
     }
@@ -67,6 +65,9 @@ public class Specification<T> implements ISpecification<T>{
 
     @Override
     public <R> List<R> selectCompiler(IExpressionVisitor<T,R> visitor){
+        if (whereDescriptors == null) {
+            return new ArrayList<>();
+        }
         return whereDescriptors.stream().map(descriptor -> descriptor.func(visitor)).collect(Collectors.toList());
     }
 
@@ -103,18 +104,6 @@ public class Specification<T> implements ISpecification<T>{
     @Override
     public Iterable<OrderExpressionInfo<T>> getOrderExpressions() {
         return orderExpressions==null? new ArrayList<>(DEFAULT_CAPACITY_WHERE):orderExpressions;
-    }
-
-    public static void setIsChainDiscarded(boolean isChainDiscarded) {
-        CHAIN_DISCARDED.set(isChainDiscarded);
-    }
-
-    public static boolean getChainDiscarded() {
-        return CHAIN_DISCARDED.get();
-    }
-
-    public static void clearIsChainDiscarded() {
-        CHAIN_DISCARDED.remove();
     }
 
 

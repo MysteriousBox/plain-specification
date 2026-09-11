@@ -32,6 +32,10 @@
             <artifactId>mybatis-plus-extension</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
@@ -66,7 +70,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.plain.utils</groupId>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.plain</groupId>
             <artifactId>plain-utils</artifactId>
         </dependency>
         <dependency>

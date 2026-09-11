@@ -30,6 +30,12 @@ public class MybatisplusEntityToPoVisitor <T,PO> extends AbstractExpressionVisit
         this.wrapper = wrapper;
     }
 
+    private String resolveColumn(java.io.Serializable lambda) {
+        SerializedLambda serialize = MpFieldNameResolver.serialize(lambda);
+        return FieldMappingRegistry.getColumn(
+                MpFieldNameResolver.getDomainClass(serialize),
+                MpFieldNameResolver.resolve(serialize));
+    }
 
     @Override
     public QueryWrapper<PO> visitAnd(AndExpression<T> expression) {
@@ -62,95 +68,69 @@ public class MybatisplusEntityToPoVisitor <T,PO> extends AbstractExpressionVisit
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitEqual(EqualExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.eq(column, expression.getRight());
+        return wrapper.eq(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitNotEqual(NotEqualExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.ne(column, expression.getRight());
+        return wrapper.ne(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitGt(GreaterThanExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.gt(column, expression.getRight());
+        return wrapper.gt(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitGte(GreaterThanOrEqualExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.ge(column, expression.getRight());
+        return wrapper.ge(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitLt(LessThanExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.lt(column, expression.getRight());
+        return wrapper.lt(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitLte(LessThanOrEqualExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.le(column, expression.getRight());
+        return wrapper.le(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitIn(InExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.in(column, expression.getRight());
+        return wrapper.in(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitNot(NotInExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.notIn(column, expression.getRight());
+        return wrapper.notIn(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <R extends Comparable<R>> QueryWrapper<PO> visitBetween(BetweenExpression<T, R> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.between(column, expression.getLowerBound(), expression.getUpperBound());
+        return wrapper.between(resolveColumn(expression.getLeft()), expression.getLowerBound(), expression.getUpperBound());
     }
 
     @Override
     public QueryWrapper<PO> visitLike(LikeExpression<T> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.like(column, expression.getRight());
+        return wrapper.like(resolveColumn(expression.getLeft()), expression.getRight());
     }
 
     @Override
     public <V> QueryWrapper<PO> visitIsNull(IsNullExpression<T,V> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.isNull(column);
+        return wrapper.isNull(resolveColumn(expression.getLeft()));
     }
 
     @Override
     public <V>  QueryWrapper<PO> visitIsNotNull(IsNotNullExpression<T, V> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
-        return wrapper.isNotNull(column);
+        return wrapper.isNotNull(resolveColumn(expression.getLeft()));
     }
 
     @Override
     public <V extends Comparable<V>> QueryWrapper<PO> visitOrder(OrderExpression<T, V> expression) {
-        SerializedLambda serialize = MpFieldNameResolver.serialize(expression.getLeft());
-        String column = FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), MpFieldNameResolver.resolve(serialize));
         Comparator<V> comparator = expression.getComparator();
         boolean isAsc = !isReverseOrder(comparator);
-        wrapper.orderBy( true,isAsc,column);
+        wrapper.orderBy(true, isAsc, resolveColumn(expression.getLeft()));
         return wrapper;
     }
 

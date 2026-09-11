@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,8 +33,9 @@ public class FieldMappingRegistrar {
             throw new IllegalStateException(TABLE_INFO_ERROR + poClass);
         }
 
-        Map<String, String> fieldMapping = new HashMap<>(domainClass.getDeclaredFields().length);
-        for (Field domainField : domainClass.getDeclaredFields()) {
+        List<Field> allFields = getAllFields(domainClass);
+        Map<String, String> fieldMapping = new HashMap<>(allFields.size());
+        for (Field domainField : allFields) {
             for (TableFieldInfo tableFieldInfo : tableInfo.getFieldList()) {
                 if (tableFieldInfo.getProperty().equals(domainField.getName())) {
                     fieldMapping.put(domainField.getName(), tableFieldInfo.getColumn());
@@ -41,5 +44,17 @@ public class FieldMappingRegistrar {
             }
         }
         FieldMappingRegistry.register(domainClass, fieldMapping);
+    }
+
+    private static List<Field> getAllFields(Class<?> clazz) {
+        List<Field> fields = new ArrayList<>();
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                fields.add(field);
+            }
+            current = current.getSuperclass();
+        }
+        return fields;
     }
 }
