@@ -8,7 +8,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
  * @param <T>
  * @param <V>
  */
-public class LessThanExpression<T, V extends Comparable<V>> extends BinaryExpression<T, V>{
+public class LessThanExpression<T, V extends Comparable<V>> extends AbstractBinaryExpression<T, V> {
     public LessThanExpression(SFunction<T, V> left, V right) {
         super(left, ExpressionOperatorEnum.LESS_THAN, right);
     }

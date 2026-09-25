@@ -8,7 +8,7 @@ import java.util.Collection;
 @Getter
 
 /**
- * Class NotExistsExpression.
+ * NOT EXISTS 子查询排除表达式。
  *
  * @author Jayden.Liang
  */

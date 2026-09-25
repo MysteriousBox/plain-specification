@@ -6,7 +6,7 @@ import org.plain.specification.core.IPageResult;
 import java.util.Collection;
 
 /**
- * Class PageResultAdapter.
+ * MyBatis-Plus 分页结果适配器，将 IPage 转换为统一的 IPageResult 接口。
  *
  * @author Jayden.Liang
  */

@@ -5,29 +5,27 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.plain.specification.core.expression.*;
 import org.plain.specification.core.visitor.AbstractExpressionVisitor;
 
-import java.util.Comparator;
-
 /**
- * Class MybatisplusExpressionVisitor.
+ * MyBatis-Plus QueryWrapper 表达式访问器，将规格表达式转换为 QueryWrapper 条件。
  *
  * @author Jayden.Liang
  */
 
 
 @SuppressWarnings("squid:S1602")
-public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T, QueryWrapper<T>> {
+public class MybatisPlusExpressionVisitor<T> extends AbstractExpressionVisitor<T, QueryWrapper<T>> {
 
     /**
      * MyBatis-Plus query wrapper.
      */
     private final QueryWrapper<T> wrapper ;
 
-    public MybatisplusExpressionVisitor() {
+    public MybatisPlusExpressionVisitor() {
         super();
         wrapper = Wrappers.query();
     }
 
-    public MybatisplusExpressionVisitor(QueryWrapper<T> wrapper) {
+    public MybatisPlusExpressionVisitor(QueryWrapper<T> wrapper) {
         super();
         this.wrapper = wrapper;
     }
@@ -36,10 +34,10 @@ public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T
     @Override
     public QueryWrapper<T> visitAnd(AndExpression<T> expression) {
         wrapper.nested(left -> {
-            expression.getLeft().accept(new MybatisplusExpressionVisitor<>(left));
+            expression.getLeft().accept(new MybatisPlusExpressionVisitor<>(left));
         });
         wrapper.nested(right->{
-            expression.getRight().accept(new MybatisplusExpressionVisitor<>(right));
+            expression.getRight().accept(new MybatisPlusExpressionVisitor<>(right));
         });
         return wrapper;
     }
@@ -47,18 +45,18 @@ public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T
     @Override
     public QueryWrapper<T> visitOr(OrExpression<T> expression) {
         wrapper.nested(left -> {
-            expression.getLeft().accept(new MybatisplusExpressionVisitor<>(left));
+            expression.getLeft().accept(new MybatisPlusExpressionVisitor<>(left));
         });
         wrapper.or();
         wrapper.nested(right->{
-            expression.getRight().accept(new MybatisplusExpressionVisitor<>(right));
+            expression.getRight().accept(new MybatisPlusExpressionVisitor<>(right));
         });
         return wrapper;
     }
 
     @Override
     public QueryWrapper<T> visitNot(NotExpression<T> expression) {
-        return wrapper.not(inner->expression.getExpression().accept(new MybatisplusExpressionVisitor<>(inner)));
+        return wrapper.not(inner->expression.getExpression().accept(new MybatisPlusExpressionVisitor<>(inner)));
     }
 
 
@@ -131,9 +129,7 @@ public class MybatisplusExpressionVisitor<T> extends AbstractExpressionVisitor<T
 
     @Override
     public <V extends Comparable<V>> QueryWrapper<T> visitOrder(OrderExpression<T, V> expression) {
-        Comparator<V> comparator = expression.getComparator();
-        boolean isAsc = !isReverseOrder(comparator);
-        wrapper.orderBy(true, isAsc, MpFieldNameResolver.resolve(expression.getLeft()));
+        wrapper.orderBy(true, expression.isAscending(), MpFieldNameResolver.resolve(expression.getLeft()));
         return wrapper;
     }
 }

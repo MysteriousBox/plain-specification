@@ -8,7 +8,7 @@ import java.util.Collection;
 @Getter
 
 /**
- * Class NotInExpression.
+ * NOT IN 集合排除表达式。
  *
  * @author Jayden.Liang
  */

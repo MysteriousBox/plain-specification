@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 /**
- * Class InMemorySpecificationEvaluator.
+ * 内存规格求值器，通过流式过滤和排序在内存中执行查询。
  *
  * @author Jayden.Liang
  */
@@ -24,7 +24,7 @@ public class InMemorySpecificationEvaluator implements ISpecificationEvaluator {
 
 
     private InMemorySpecificationEvaluator() {
-        this.evaluators = Arrays.asList(WhereEvaluator.INSTANCE);
+        this.evaluators = Arrays.asList(WhereEvaluator.INSTANCE, OrderEvaluator.INSTANCE);
     }
 
     public InMemorySpecificationEvaluator(Collection<IEvaluator> evaluators) {

@@ -113,6 +113,58 @@ class PredicateExpressionVisitorTest {
         assertTrue(p.test(new User("Alice", 20)));
     }
 
+    // --- GreaterThanOrEqual ---
+
+    @Test
+    void visitGte_nullValue_shouldThrow() {
+        Predicate<User> p = new GreaterThanOrEqualExpression<User, Integer>(User::getAge, 10).accept(visitor);
+        assertThrows(IllegalArgumentException.class, () -> p.test(new User(null, null)));
+    }
+
+    @Test
+    void visitGte_greaterValue_shouldReturnTrue() {
+        Predicate<User> p = new GreaterThanOrEqualExpression<User, Integer>(User::getAge, 10).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitGte_equalValue_shouldReturnTrue() {
+        Predicate<User> p = new GreaterThanOrEqualExpression<User, Integer>(User::getAge, 20).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitGte_lesserValue_shouldReturnFalse() {
+        Predicate<User> p = new GreaterThanOrEqualExpression<User, Integer>(User::getAge, 30).accept(visitor);
+        assertFalse(p.test(new User("Alice", 20)));
+    }
+
+    // --- LessThanOrEqual ---
+
+    @Test
+    void visitLte_nullValue_shouldThrow() {
+        Predicate<User> p = new LessThanOrEqualExpression<User, Integer>(User::getAge, 30).accept(visitor);
+        assertThrows(IllegalArgumentException.class, () -> p.test(new User(null, null)));
+    }
+
+    @Test
+    void visitLte_lesserValue_shouldReturnTrue() {
+        Predicate<User> p = new LessThanOrEqualExpression<User, Integer>(User::getAge, 30).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitLte_equalValue_shouldReturnTrue() {
+        Predicate<User> p = new LessThanOrEqualExpression<User, Integer>(User::getAge, 20).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitLte_greaterValue_shouldReturnFalse() {
+        Predicate<User> p = new LessThanOrEqualExpression<User, Integer>(User::getAge, 10).accept(visitor);
+        assertFalse(p.test(new User("Alice", 20)));
+    }
+
     // --- Between ---
 
     @Test
@@ -266,5 +318,83 @@ class PredicateExpressionVisitorTest {
         Predicate<User> p = expr.accept(visitor);
         assertFalse(p.test(new User("Alice", 20)));
         assertTrue(p.test(new User("Bob", 20)));
+    }
+
+    // --- Boundary tests ---
+
+    @Test
+    void visitGt_equalValue_shouldReturnFalse() {
+        Predicate<User> p = new GreaterThanExpression<User, Integer>(User::getAge, 20).accept(visitor);
+        assertFalse(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitLt_equalValue_shouldReturnFalse() {
+        Predicate<User> p = new LessThanExpression<User, Integer>(User::getAge, 20).accept(visitor);
+        assertFalse(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitBetween_atLowerBound_shouldReturnTrue() {
+        Predicate<User> p = new BetweenExpression<User, Integer>(User::getAge, 20, 30).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    @Test
+    void visitBetween_atUpperBound_shouldReturnTrue() {
+        Predicate<User> p = new BetweenExpression<User, Integer>(User::getAge, 10, 20).accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+    }
+
+    // --- Nested expressions ---
+
+    @Test
+    void nestedAndInsideOr_shouldEvaluateCorrectly() {
+        OrExpression<User> expr = new OrExpression<>(
+            new EqualExpression<>(User::getName, "Bob"),
+            new AndExpression<>(
+                new EqualExpression<>(User::getName, "Alice"),
+                new GreaterThanExpression<>(User::getAge, 10)
+            )
+        );
+        Predicate<User> p = expr.accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+        assertTrue(p.test(new User("Bob", 5)));
+        assertFalse(p.test(new User("Charlie", 20)));
+    }
+
+    @Test
+    void nestedOrInsideAnd_shouldEvaluateCorrectly() {
+        AndExpression<User> expr = new AndExpression<>(
+            new OrExpression<>(
+                new EqualExpression<>(User::getName, "Alice"),
+                new EqualExpression<>(User::getName, "Bob")
+            ),
+            new GreaterThanExpression<>(User::getAge, 10)
+        );
+        Predicate<User> p = expr.accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+        assertTrue(p.test(new User("Bob", 15)));
+        assertFalse(p.test(new User("Alice", 5)));
+        assertFalse(p.test(new User("Charlie", 20)));
+    }
+
+    @Test
+    void deeplyNestedExpressions_shouldEvaluateCorrectly() {
+        AndExpression<User> expr = new AndExpression<>(
+            new OrExpression<>(
+                new AndExpression<>(
+                    new GreaterThanExpression<>(User::getAge, 10),
+                    new LessThanExpression<>(User::getAge, 30)
+                ),
+                new EqualExpression<>(User::getName, "Admin")
+            ),
+            new NotExpression<>(new EqualExpression<>(User::getName, "Blocked"))
+        );
+        Predicate<User> p = expr.accept(visitor);
+        assertTrue(p.test(new User("Alice", 20)));
+        assertTrue(p.test(new User("Admin", 5)));
+        assertFalse(p.test(new User("Blocked", 20)));
+        assertFalse(p.test(new User("Alice", 40)));
     }
 }

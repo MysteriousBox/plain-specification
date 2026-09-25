@@ -5,7 +5,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 
 /**
- * Class IsNotNullExpression.
+ * IS NOT NULL 非空判断表达式。
  *
  * @author Jayden.Liang
  */

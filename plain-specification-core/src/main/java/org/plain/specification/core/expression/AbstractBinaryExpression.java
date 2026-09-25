@@ -5,14 +5,14 @@ import lombok.Getter;
 
 
 /**
- * Class BinaryExpression.
+ * 二元比较表达式基类。
+ *
  * @author Jayden.Liang
- * @param <T> 类型
+ * @param <T> 实体类型
  * @param <V> 值类型
  */
 @Getter
-@SuppressWarnings({"AbstractClassShouldStartWithAbstractNamingRule"})
-public abstract class BinaryExpression<T,V extends Comparable<V>> implements IExpression<T>{
+public abstract class AbstractBinaryExpression<T, V extends Comparable<V>> implements IExpression<T> {
 
     private final SFunction<T, V> left;
 
@@ -20,7 +20,7 @@ public abstract class BinaryExpression<T,V extends Comparable<V>> implements IEx
 
     private final V right;
 
-    public BinaryExpression(SFunction<T, V> left, ExpressionOperatorEnum operator, V right) {
+    public AbstractBinaryExpression(SFunction<T, V> left, ExpressionOperatorEnum operator, V right) {
         this.left = left;
         this.operator = operator;
         this.right = right;

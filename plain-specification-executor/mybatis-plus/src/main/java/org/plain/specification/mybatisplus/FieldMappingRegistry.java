@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Class FieldMappingRegistry.
+ * 字段映射注册表，管理实体字段与数据库列的映射关系。
  *
  * @author Jayden.Liang
  */

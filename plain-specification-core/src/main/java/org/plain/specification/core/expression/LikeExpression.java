@@ -6,7 +6,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 
 
 /**
- * Class LikeExpression.
+ * LIKE 模糊匹配表达式。
  *
  * @author Jayden.Liang
  */

@@ -51,7 +51,7 @@ public class HybridSpecificationEvaluator<T> implements ISpecificationEvaluator 
         if (canPushDown(exec, specification)) {
             return exec.execute((ISpecification<E>) specification);
         }
-        return WhereEvaluator.INSTANCE.evaluate(entities, specification);
+        return InMemorySpecificationEvaluator.DEFAULT.evaluate(entities, specification);
     }
 
     /**

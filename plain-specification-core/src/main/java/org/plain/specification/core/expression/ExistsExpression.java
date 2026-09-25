@@ -7,7 +7,7 @@ import java.util.Collection;
 
 
 /**
- * Class ExistsExpression.
+ * EXISTS 子查询表达式。
  *
  * @author Jayden.Liang
  */

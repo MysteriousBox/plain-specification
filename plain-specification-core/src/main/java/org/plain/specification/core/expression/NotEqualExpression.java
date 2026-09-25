@@ -9,7 +9,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
  * @param <T>
  * @param <V>
  */
-public class NotEqualExpression <T,V extends Comparable<V>> extends BinaryExpression<T, V>{
+public class NotEqualExpression<T, V extends Comparable<V>> extends AbstractBinaryExpression<T, V> {
     public NotEqualExpression(SFunction<T, V> left,  V right) {
         super(left, ExpressionOperatorEnum.NOT_EQUAL, right);
     }

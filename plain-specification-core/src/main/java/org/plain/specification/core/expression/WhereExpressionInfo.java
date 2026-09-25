@@ -7,7 +7,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.function.Predicate;
 
 /**
- * Class WhereExpressionInfo.
+ * WHERE 表达式信息封装，持有字段引用、操作符和比较值。
  *
  * @author Jayden.Liang
  */

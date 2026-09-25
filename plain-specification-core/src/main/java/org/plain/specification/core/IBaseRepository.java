@@ -4,92 +4,124 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * 基础的 repository
- * 该 repository 主要实现一些常用的，通用的 操作方法 ，比如 保存、更新、删除等方法
- * @param <T> ENTITY 的类型
+ * 读写基本 Repository。
+ * <p>
+ * 异步方法默认通过 {@link #getAsyncExecutor()} 提供的执行器异步调用同步方法。
+ * 实现类可覆盖异步方法以提供事务性或批量化优化。
+ * </p>
+ *
+ * @param <T> 实体类型
+ * @param <TID> ID 类型
  * @author Jayden.Liang
  */
 public interface IBaseRepository<T, TID> extends IReadBaseRepository<T, TID> {
 
     /**
-     * 保存一个 entity 到数据库 database 中
-     * @param entity 需要添加到 database 的 entity
-     * @return entity
+     * 保存实体。
+     *
+     * @param entity 需要保存的实体
+     * @return 保存后的实体
      */
     T save(T entity);
 
     /**
-     * 异步的保存 entity 到 database 中
-     * @param entity 需要添加到 database 的entity
-     * @return  CompletableFuture<T> 异步的任务
+     * 异步保存实体。
+     *
+     * @param entity 需要保存的实体
+     * @return 异步任务
      */
-    CompletableFuture<T> saveAsync(T entity);
+    default CompletableFuture<T> saveAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> save(entity), getAsyncExecutor());
+    }
 
     /**
-     * 异步的 保存给定的实体到数据库中。
-     * @param entities 给定的实体
-     * @return CompletableFuture<T> 异步的任务
+     * 异步批量保存实体。
+     *
+     * @param entities 需要保存的实体集合
+     * @return 异步任务
      */
-    CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities);
+    default CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities) {
+        return CompletableFuture.supplyAsync(() -> {
+            entities.forEach(this::save);
+            return entities;
+        }, getAsyncExecutor());
+    }
 
     /**
-     * 更新entity到 database 中
-     * @param entity 需要添加到 database 的entity
-     * @return T
+     * 更新实体。
+     *
+     * @param entity 需要更新的实体
      */
     void update(T entity);
 
     /**
-     * 异步更新到 database 中
-     * @param entity 需要添加到 database 的entity
-     * @return CompletableFuture<Void>
+     * 异步更新实体。
+     *
+     * @param entity 需要更新的实体
+     * @return 异步任务
      */
-    CompletableFuture<Void> updateAsync(T entity);
+    default CompletableFuture<Void> updateAsync(T entity) {
+        return CompletableFuture.runAsync(() -> update(entity), getAsyncExecutor());
+    }
 
     /**
-     * 异步的更新 给定的entities 到数据库中
-     * @param entities entities
-     * @return CompletableFuture<Void>
+     * 异步批量更新实体。
+     *
+     * @param entities 需要更新的实体集合
+     * @return 异步任务
      */
-    CompletableFuture<Void> updateRangeAsync(Collection<T> entities);
+    default CompletableFuture<Void> updateRangeAsync(Collection<T> entities) {
+        return CompletableFuture.runAsync(() -> entities.forEach(this::update), getAsyncExecutor());
+    }
 
     /**
-     * 根据id 删除 client
+     * 根据 id 删除。
+     *
      * @param id id
      */
     void deleteById(TID id);
 
     /**
-     * 根据ids 批量删除 entities
-     * @param ids ids
+     * 根据 id 集合批量删除。
+     *
+     * @param ids id 集合
      */
     void deleteByIds(Collection<TID> ids);
 
     /**
-     * 根据id 从数据库中 删除 entity
-     * @param entity 将要删除的 entity
+     * 根据实体删除。
+     *
+     * @param entity 需要删除的实体
      */
     void delete(T entity);
 
     /**
-     * 异步从数据库中 删除 entity
-     * @param entity entity
-     * @return CompletableFuture<Void>
+     * 异步删除实体。
+     *
+     * @param entity 需要删除的实体
+     * @return 异步任务
      */
-    CompletableFuture<Void> deleteAsync(T entity);
+    default CompletableFuture<Void> deleteAsync(T entity) {
+        return CompletableFuture.runAsync(() -> delete(entity), getAsyncExecutor());
+    }
 
     /**
-     * 异步从数据库中删除 给定的 entities
-     * @param entities 需要删除的 entities
-     * @return CompletableFuture<Void>
+     * 异步批量删除实体。
+     *
+     * @param entities 需要删除的实体集合
+     * @return 异步任务
      */
-    CompletableFuture<Void> deleteRangeAsync(Collection<T> entities);
-
+    default CompletableFuture<Void> deleteRangeAsync(Collection<T> entities) {
+        return CompletableFuture.runAsync(() -> entities.forEach(this::delete), getAsyncExecutor());
+    }
 
     /**
-     * 根据 specification 删除 entities
-     * @param specification  specification
-     * @return CompletableFuture<Void>
+     * 根据条件删除实体。
+     *
+     * @param specification 查询条件
+     * @return 异步任务
      */
-    CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification);
+    default CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
+        return CompletableFuture.runAsync(() -> findRange(specification).forEach(this::delete), getAsyncExecutor());
+    }
 }

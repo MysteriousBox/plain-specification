@@ -11,7 +11,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
- * Class MpFieldNameResolver.
+ * MyBatis-Plus 字段名解析器，从 Lambda 表达式提取数据库列名。
  *
  * @author Jayden.Liang
  */

@@ -5,7 +5,7 @@ import org.plain.specification.core.expression.*;
 import java.util.Comparator;
 
 /**
- * Class AbstractExpressionVisitor.
+ * 表达式访问器抽象基类，提供默认的访问方法实现。
  *
  * @author Jayden.Liang
  */
@@ -101,7 +101,7 @@ public abstract class AbstractExpressionVisitor<T,R> implements IExpressionVisit
 
     @Override
     public <V extends Comparable<V>> R visitOrder(OrderExpression<T, V> expression) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
 

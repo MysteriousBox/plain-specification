@@ -8,7 +8,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 /**
- * Class WhereEvaluator.
+ * WHERE 条件求值器，判断表达式是否为条件类型。
  *
  * @author Jayden.Liang
  */

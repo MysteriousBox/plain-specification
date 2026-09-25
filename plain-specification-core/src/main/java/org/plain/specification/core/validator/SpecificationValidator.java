@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 /**
- * Class SpecificationValidator.
+ * 规格验证器，校验规格的完整性和合法性。
  *
  * @author Jayden.Liang
  */

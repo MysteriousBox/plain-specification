@@ -5,7 +5,7 @@ import org.plain.specification.core.descriptor.IExpressionDescriptor;
 import org.plain.specification.core.visitor.PredicateExpressionVisitor;
 
 /**
- * Class WhereValidator.
+ * WHERE 条件验证器，校验条件表达式的参数合法性。
  *
  * @author Jayden.Liang
  */

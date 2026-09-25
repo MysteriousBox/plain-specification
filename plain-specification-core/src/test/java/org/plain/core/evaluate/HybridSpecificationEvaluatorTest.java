@@ -132,4 +132,72 @@ class HybridSpecificationEvaluatorTest {
     void constructor_shouldThrow_whenExecutorIsNull() {
         assertThrows(IllegalArgumentException.class, () -> new HybridSpecificationEvaluator<>(null));
     }
+
+    @Test
+    void evaluate_fallback_shouldPreserveOrdering() {
+        List<User> data = Arrays.asList(
+            new User("Charlie", 30),
+            new User("Alice", 25),
+            new User("Bob", 35)
+        );
+        MockExecutor<User> executor = new MockExecutor<>(Collections.emptySet(), data);
+        HybridSpecificationEvaluator<User> evaluator = new HybridSpecificationEvaluator<>(executor);
+
+        Specification<User> spec = new Specification<>();
+        spec.query().where(Expressions.<User>create().greaterThan(User::getAge, 0));
+        spec.query().orderBy(Expressions.<User>create().orderBy(User::getAge));
+
+        Collection<User> result = evaluator.evaluate(data, spec);
+        assertFalse(executor.executeCalled);
+        List<User> list = new ArrayList<>(result);
+        assertEquals(3, list.size());
+        assertEquals(25, list.get(0).getAge());
+        assertEquals(30, list.get(1).getAge());
+        assertEquals(35, list.get(2).getAge());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void executePaged_shouldDelegateToExecutor_whenCanPushDown() {
+        Set<Class<? extends IExpression<User>>> supported = new HashSet<>();
+        supported.add((Class) EqualExpression.class);
+        supported.add((Class) AndExpression.class);
+
+        List<User> data = Arrays.asList(new User("Alice", 20));
+        IPageResult<User> mockPageResult = new IPageResult<User>() {
+            @Override public Long getPageSize() { return 10L; }
+            @Override public Long getPage() { return 1L; }
+            @Override public Long getTotal() { return 1L; }
+            @Override public Long getPages() { return 1L; }
+            @Override public Collection<User> getRecords() { return data; }
+            @Override public Boolean hasPrevious() { return false; }
+            @Override public Boolean hasNext() { return false; }
+        };
+
+        MockExecutor<User> executor = new MockExecutor<User>(supported, data) {
+            @Override
+            public IPageResult<User> execute(ISpecification<User> specification, PageQuery pageQuery) {
+                return mockPageResult;
+            }
+        };
+        HybridSpecificationEvaluator<User> evaluator = new HybridSpecificationEvaluator<>(executor);
+
+        Specification<User> spec = new Specification<>();
+        spec.query().where(Expressions.<User>create().equal(User::getName, "Alice"));
+
+        IPageResult<User> result = evaluator.executePaged(spec, new PageQuery(1, 10));
+        assertEquals(Long.valueOf(1), result.getTotal());
+    }
+
+    @Test
+    void executePaged_shouldThrow_whenCannotPushDown() {
+        MockExecutor<User> executor = new MockExecutor<>(Collections.emptySet(), Collections.emptyList());
+        HybridSpecificationEvaluator<User> evaluator = new HybridSpecificationEvaluator<>(executor);
+
+        Specification<User> spec = new Specification<>();
+        spec.query().where(Expressions.<User>create().equal(User::getName, "Alice"));
+
+        assertThrows(UnsupportedOperationException.class,
+            () -> evaluator.executePaged(spec, new PageQuery(1, 10)));
+    }
 }

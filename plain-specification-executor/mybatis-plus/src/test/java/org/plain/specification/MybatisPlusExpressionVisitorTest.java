@@ -9,11 +9,11 @@ import org.plain.specification.core.builder.ISpecificationBuilder;
 import org.plain.specification.core.descriptor.IExpressionDescriptor;
 import org.plain.specification.core.expression.Expressions;
 import org.plain.specification.core.expression.OrderExpressionInfo;
-import org.plain.specification.mybatisplus.MybatisplusExpressionVisitor;
+import org.plain.specification.mybatisplus.MybatisPlusExpressionVisitor;
 
 import java.util.Arrays;
 
-public class MyBatisplusExpressionVisitorTest {
+public class MybatisPlusExpressionVisitorTest {
 
 
     @Test
@@ -81,7 +81,7 @@ public class MyBatisplusExpressionVisitorTest {
                 .where(Expressions.<MpSpecificationBuilderTest.Person>create().like(MpSpecificationBuilderTest.Person::getName, "李四").lessThan(MpSpecificationBuilderTest.Person::getAge, 28));
         ISpecification<MpSpecificationBuilderTest.Person> specificationTest = where.getSpecification();
         specificationTest.getWhereExpressions().forEach(whereExpressionInfo -> {
-            QueryWrapper<MpSpecificationBuilderTest.Person> func = whereExpressionInfo.func(new MybatisplusExpressionVisitor<>());
+            QueryWrapper<MpSpecificationBuilderTest.Person> func = whereExpressionInfo.func(new MybatisPlusExpressionVisitor<>());
             System.out.println(func.getTargetSql());
         });
     }
@@ -202,13 +202,13 @@ public class MyBatisplusExpressionVisitorTest {
     }
 
     private static void print(ISpecification<MpSpecificationBuilderTest.Person> specificationTest) {
-        MybatisplusExpressionVisitor<MpSpecificationBuilderTest.Person> objectMybatisplusExpressionVisitor = new MybatisplusExpressionVisitor<>();
+        MybatisPlusExpressionVisitor<MpSpecificationBuilderTest.Person> objectMybatisPlusExpressionVisitor = new MybatisPlusExpressionVisitor<>();
         AbstractWrapper<?, ?, ?> func = null;
         for (IExpressionDescriptor<MpSpecificationBuilderTest.Person> whereExpression : specificationTest.getWhereExpressions()) {
-            func = whereExpression.func(objectMybatisplusExpressionVisitor);
+            func = whereExpression.func(objectMybatisPlusExpressionVisitor);
         }
         for (OrderExpressionInfo<MpSpecificationBuilderTest.Person> orderExpression : specificationTest.getOrderExpressions()) {
-            func = orderExpression.func(objectMybatisplusExpressionVisitor);
+            func = orderExpression.func(objectMybatisPlusExpressionVisitor);
         }
         if (func != null) {
             try {

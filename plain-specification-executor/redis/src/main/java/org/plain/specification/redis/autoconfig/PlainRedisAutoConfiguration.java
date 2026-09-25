@@ -4,6 +4,7 @@ import org.plain.specification.redis.DefaultStrategies;
 import org.plain.specification.redis.RedisRepositoryConfig;
 import org.plain.specification.redis.*;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -15,18 +16,16 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
 /**
- * 自动装配：提供全局 RedisRepositoryConfig 构建器和默认策略注入点
+ * Redis 模块自动配置。
  * <p>
- * 使用本模块的 RedisRepositoryFactory（避免与 Spring Data 的同名类冲突）
- *
- * @author Jayden.Liang
- */
-/**
- * Class PlainRedisAutoConfiguration.
+ * 提供全局 RedisRepositoryConfig 构建器和默认策略注入点。
+ * 当 classpath 存在 StringRedisTemplate 时生效，否则静默跳过。
+ * </p>
  *
  * @author Jayden.Liang
  */
 @Configuration
+@ConditionalOnClass(StringRedisTemplate.class)
 @EnableConfigurationProperties(RedisRepositoryProperties.class)
 public class PlainRedisAutoConfiguration {
 
@@ -93,33 +92,42 @@ public class PlainRedisAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RedisRepositoryConfig<Object, Object> globalRedisRepositoryConfig(RedisRepositoryProperties props,
-                                                                             ObjectProvider<Executor> executorProvider,
-                                                                             RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider,
-                                                                             FieldValueSerializer fieldValueSerializer,
-                                                                             Serializer<Object> serializer,
-                                                                             Deserializer<Object> deserializer,
-                                                                             IdExtractor<Object, Object> idExtractor,
-                                                                             ScoreProvider<Object> scoreProvider,
-                                                                             TtlProvider<Object> ttlProvider,
-                                                                             FieldExtractor<Object> fieldExtractor,
-                                                                             EntityBuilder<Object> entityBuilder) {
+    public RedisRepositoryStrategies redisRepositoryStrategies(
+            RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider,
+            FieldValueSerializer fieldValueSerializer,
+            Serializer<Object> serializer,
+            Deserializer<Object> deserializer,
+            IdExtractor<Object, Object> idExtractor,
+            ScoreProvider<Object> scoreProvider,
+            TtlProvider<Object> ttlProvider,
+            FieldExtractor<Object> fieldExtractor,
+            EntityBuilder<Object> entityBuilder) {
+        return new RedisRepositoryStrategies(keyPrefixProvider, fieldValueSerializer,
+                serializer, deserializer, idExtractor, scoreProvider, ttlProvider,
+                fieldExtractor, entityBuilder);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RedisRepositoryConfig<Object, Object> globalRedisRepositoryConfig(
+            RedisRepositoryProperties props,
+            ObjectProvider<Executor> executorProvider,
+            RedisRepositoryStrategies strategies) {
         Objects.requireNonNull(props, "RedisRepositoryProperties must not be null");
         RedisRepositoryConfig.Builder<Object, Object> b = new RedisRepositoryConfig.Builder<>();
 
-        // 只设置必要策略和最终可用字段
-        b.keyPrefixProvider(keyPrefixProvider)
+        b.keyPrefixProvider(strategies.keyPrefixProvider())
                 .defaultZsetName(props.getDefaultZsetName())
                 .defaultTtl(props.getDefaultTtl())
                 .batchSize(props.getBatchSize())
-                .serializer(serializer)
-                .deserializer(deserializer)
-                .idExtractor(idExtractor)
-                .scoreProvider(scoreProvider)
-                .ttlProvider(ttlProvider)
-                .fieldExtractor(fieldExtractor)
-                .entityBuilder(entityBuilder)
-                .fieldValueSerializer(fieldValueSerializer);
+                .serializer(strategies.serializer())
+                .deserializer(strategies.deserializer())
+                .idExtractor(strategies.idExtractor())
+                .scoreProvider(strategies.scoreProvider())
+                .ttlProvider(strategies.ttlProvider())
+                .fieldExtractor(strategies.fieldExtractor())
+                .entityBuilder(strategies.entityBuilder())
+                .fieldValueSerializer(strategies.fieldValueSerializer());
         Executor exe = executorProvider.getIfUnique();
         if (exe == null) {
             exe = ForkJoinPool.commonPool();

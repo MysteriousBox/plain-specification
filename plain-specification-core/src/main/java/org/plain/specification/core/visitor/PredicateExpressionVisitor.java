@@ -105,12 +105,18 @@ public class PredicateExpressionVisitor<T> extends AbstractExpressionVisitor<T, 
 
     @Override
     public <V extends Comparable<V>> Predicate<T> visitIn(InExpression<T, V> expression) {
-        return t-> expression.getRight().contains(expression.getLeft().apply(t));
+        return t -> {
+            V value = expression.getLeft().apply(t);
+            return value != null && expression.getRight().contains(value);
+        };
     }
 
     @Override
     public <V extends Comparable<V>> Predicate<T> visitNot(NotInExpression<T, V> expression) {
-        return t-> !expression.getRight().contains(expression.getLeft().apply(t));
+        return t -> {
+            V value = expression.getLeft().apply(t);
+            return value == null || !expression.getRight().contains(value);
+        };
     }
 
     @Override

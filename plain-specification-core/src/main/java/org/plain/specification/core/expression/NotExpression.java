@@ -4,11 +4,7 @@ import lombok.Getter;
 import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
- * 非 逻辑运算符
- * @author Jayden.Liang
- */
-/**
- * Class NotExpression.
+ * NOT 逻辑取反表达式。
  *
  * @author Jayden.Liang
  */

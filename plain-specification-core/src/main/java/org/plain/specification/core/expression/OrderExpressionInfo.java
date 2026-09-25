@@ -8,7 +8,7 @@ import org.plain.specification.core.visitor.IExpressionVisitor;
 import java.util.Comparator;
 
 /**
- * Class OrderExpressionInfo.
+ * 排序表达式信息封装，持有字段引用和比较器。
  *
  * @author Jayden.Liang
  */

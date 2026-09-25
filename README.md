@@ -25,6 +25,8 @@ plain-specification/
 ├── plain-specification-executor/
 │   ├── mybatis-plus/                  MyBatis-Plus integration (SQL generation)
 │   └── redis/                         Redis integration (ZSET + HASH storage)
+├── plain-specification-spring-boot-starter/  Spring Boot auto-configuration
+└── plain-specification-example/       Example applications and usage demos
 ```
 
 ## Quick Start
@@ -129,25 +131,29 @@ Expressions.<User>create()
 ### MyBatis-Plus Integration
 
 ```java
-// Repository implementation
+// Simple repository (domain type = mapper type)
 @Repository
-public class UserRepository extends MybatisPlusBaseRepository<User, UserPO> {
+public class UserRepository extends MybatisPlusBaseRepository<User, Long> {
     
-    public UserRepository(BaseMapper<UserPO> baseMapper, 
-                         Executor executor,
+    public UserRepository(BaseMapper<User> baseMapper, Executor executor) {
+        super(baseMapper, executor);
+    }
+    
+    // Or with transaction support for async operations
+    public UserRepository(BaseMapper<User> baseMapper, Executor executor,
                          PlatformTransactionManager transactionManager) {
         super(baseMapper, executor, transactionManager);
     }
+}
+
+// Repository with domain/PO separation
+@Repository
+public class UserRepository extends MybatisPlusBaseRepositoryOfP<User, UserPO, Long> {
     
-    // Domain object to PO conversion
-    @Override
-    protected User convertToDomain(UserPO po) {
-        return UserMapper.INSTANCE.toDomain(po);
-    }
-    
-    @Override
-    protected UserPO convertToPO(User domain) {
-        return UserMapper.INSTANCE.toPO(domain);
+    public UserRepository(BaseMapper<UserPO> baseMapper,
+                         IConverter<User, UserPO> converter,
+                         Executor executor) {
+        super(baseMapper, converter, executor);
     }
 }
 
@@ -174,14 +180,16 @@ CompletableFuture<Collection<User>> future = userRepository.findRangeAsync(spec)
 ```java
 // Repository implementation
 @Repository
-public class UserRedisRepository extends BaseRedisRepository<User> {
+public class UserRedisRepository extends BaseRedisRepository<User, Long> {
     
-    public UserRedisRepository(StringRedisTemplate redisTemplate,
-                               Executor executor) {
-        super(redisTemplate, "user", executor, 
-              User::getId,
-              DefaultStrategies.jacksonSerializer(),
-              DefaultStrategies.reflectionFieldExtractor());
+    public UserRedisRepository(StringRedisTemplate redisTemplate, Executor executor) {
+        super(redisTemplate, RedisRepositoryConfig.<User, Long>builder()
+            .defaultZsetName("user")
+            .idExtractor(User::getId)
+            .asyncExecutor(executor)
+            .fieldExtractor(DefaultStrategies.reflectionFieldExtractor())
+            .scoreProvider(entity -> (double) System.currentTimeMillis())
+            .build());
     }
 }
 
@@ -196,9 +204,9 @@ Collection<User> users = userRedisRepository.findRange(spec);
 // Paginated query (scans all, filters, then paginates)
 IPageResult<User> page = userRedisRepository.page(spec, pageQuery);
 
-// Batch operations
-userRedisRepository.saveRange(users);
-userRedisRepository.removeRange(spec);
+// Async batch operations
+CompletableFuture<Collection<User>> saved = userRedisRepository.saveRangeAsync(users);
+CompletableFuture<Long> deleted = userRedisRepository.deleteRangeAsync(spec);
 ```
 
 **Redis Storage Model:**
@@ -244,8 +252,8 @@ spec.query()
 
 4. **IExpressionVisitor** — Compiles expression trees to different targets:
    - `PredicateExpressionVisitor` → `Predicate<T>` for in-memory evaluation
-   - `MpQueryWrapperVisitor` → MyBatis-Plus `QueryWrapper` for SQL generation
-   - `ComparatorExpressionVisitor` → `Comparator<T>` for sorting
+   - `MybatisPlusExpressionVisitor` → MyBatis-Plus `QueryWrapper` for SQL generation
+   - `OrderExpressionVisitor` → `Comparator<T>` for sorting
 
 5. **ISpecificationEvaluator** — Executes queries:
    - `InMemorySpecificationEvaluator` — Filters collections using predicates
@@ -296,7 +304,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## Author
 

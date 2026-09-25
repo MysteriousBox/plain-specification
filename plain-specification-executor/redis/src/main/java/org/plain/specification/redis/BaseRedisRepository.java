@@ -2,14 +2,11 @@ package org.plain.specification.redis;
 
 import org.plain.specification.core.*;
 import org.plain.specification.core.spi.ISpecificationExecutor;
-import org.plain.utils.JsonUtil;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
@@ -43,43 +40,12 @@ import java.util.stream.Collectors;
 public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, TID>, ISpecificationExecutor<T> {
 
     private static final String ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL = "id from ZSet range must not be null";
-    private static final String LUA_SAVE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL = "LUA_SAVE_PER_ENTITY_SCRIPT must not be null";
-    private static final String LUA_DELETE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL = "LUA_DELETE_PER_ENTITY_SCRIPT must not be null";
-    private static final String LUA_DELETE_BATCH_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL = "LUA_DELETE_BATCH_PER_ENTITY_SCRIPT must not be null";
 
     private final StringRedisTemplate redisTemplate;
     private final RedisRepositoryConfig<T, TID> config;
-
-    /**
-     * Lua 脚本：原子保存到 ZSET，并对每个实体的 HASH 执行 HSET(field,value ...) 与 EXPIRE（per-entity key）
-     * KEYS: [zsetKey, entityKey]
-     * ARGV: [score, id, field1, value1, field2, value2, ..., ttl]
-     */
-    private static final RedisScript<Long> LUA_SAVE_PER_ENTITY_SCRIPT = Objects.requireNonNull(RedisScript.<Long>of(
-            "redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])\n" +
-                    "local idx = 3\n" +
-                    "local last = #ARGV\n" +
-                    "while idx < last do\n" +
-                    "  redis.call('HSET', KEYS[2], ARGV[idx], ARGV[idx+1])\n" +
-                    "  idx = idx + 2\n" +
-                    "end\n" +
-                    "local ttl = tonumber(ARGV[last])\n" +
-                    "if ttl and ttl > 0 then\n" +
-                    "  redis.call('EXPIRE', KEYS[2], ttl)\n" +
-                    "end\n" +
-                    "return 1", Long.class), LUA_SAVE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-
-    private static final RedisScript<Long> LUA_DELETE_PER_ENTITY_SCRIPT = Objects.requireNonNull(RedisScript.<Long>of(
-            "redis.call('ZREM', KEYS[1], ARGV[1])\n" +
-                    "redis.call('DEL', KEYS[2])\n" +
-                    "return 1", Long.class), LUA_DELETE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-
-    private static final RedisScript<Long> LUA_DELETE_BATCH_PER_ENTITY_SCRIPT = Objects.requireNonNull(RedisScript.<Long>of(
-            "redis.call('ZREM', KEYS[1], unpack(ARGV))\n" +
-                    "for i = 2, #KEYS do\n" +
-                    "  redis.call('DEL', KEYS[i])\n" +
-                    "end\n" +
-                    "return 1", Long.class), LUA_DELETE_BATCH_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
+    private final RedisHashMapper<T, TID> hashMapper;
+    private final RedisLuaWriter<T, TID> luaWriter;
+    private final RedisBatchScanner<T, TID> batchScanner;
 
     /**
      * 构造器。
@@ -97,6 +63,9 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         }
         this.redisTemplate = redisTemplate;
         this.config = config;
+        this.hashMapper = new RedisHashMapper<>(redisTemplate, config);
+        this.luaWriter = new RedisLuaWriter<>(redisTemplate, config, hashMapper);
+        this.batchScanner = new RedisBatchScanner<>(redisTemplate, config, hashMapper, this::fetchHashes);
     }
 
     /**
@@ -109,108 +78,18 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         return config;
     }
 
-    /**
-     * 保存单个实体（同步）。
-     *
-     * <p>处理流程：
-     * <ol>
-     *   <li>使用配置的 {@link FieldExtractor} 将实体拆分为 field->value 映射；</li>
-     *   <li>通过 Lua 脚本原子地将 id/score 写入 ZSET，并对目标 per-entity HASH 执行 HSET field value ... 以及 EXPIRE；</li>
-     *   <li>若未配置 FieldExtractor 或返回空映射会抛出异常以避免写入无效数据。</li>
-     * </ol>
-     * </p>
-     *
-     * @param entity 要保存的实体，不得为 {@code null}
-     * @return 返回已保存的实体（通常为传入对象本身）
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @throws IllegalStateException    当未配置 {@link FieldExtractor} 或者 FieldExtractor 返回空映射
-     * @since 1.0
-     */
+    // =========================================================================
+    // CRUD — save / update
+    // =========================================================================
+
     @Override
     public T save(T entity) {
         if (entity == null) {
             throw new IllegalArgumentException("entity to save must not be null");
         }
-        return saveAtomic(entity);
+        return luaWriter.saveAtomic(entity);
     }
 
-    /**
-     * 内部：原子保存实现（ZSET + per-entity HASH）。
-     */
-    private T saveAtomic(T entity) {
-        if (entity == null) {
-            throw new IllegalArgumentException("entity to save must not be null");
-        }
-
-        final String zKey = getConfig().getResolvedZSetKey();
-        if (zKey == null || zKey.isEmpty()) {
-            throw new IllegalStateException("resolvedZSetKey in config must not be null or empty");
-        }
-        final double score = getScore(entity);
-        final String id = Objects.requireNonNull(getId(entity), "id extracted from entity must not be null").toString();
-        final Long entityTtl = getTtl(entity);
-        final long ttl = entityTtl == null ? getConfig().getDefaultTtl() : entityTtl;
-
-        final FieldExtractor<T> fe = getConfig().getFieldExtractor();
-        if (fe == null) {
-            throw new IllegalStateException("FieldExtractor must be configured for per-entity HASH storage");
-        }
-
-        final Map<String, Object> fields = fe.extractFields(entity);
-        if (fields == null || fields.isEmpty()) {
-            throw new IllegalStateException("FieldExtractor returned empty field map");
-        }
-
-
-        final String entityKey = getKey(id);
-        if (entityKey == null || entityKey.isEmpty()) {
-            throw new IllegalStateException("entityKey must not be null or empty");
-        }
-        final List<String> argsList = new ArrayList<>(2 + fields.size() * 2 + 1);
-        argsList.add(String.valueOf(score));
-        argsList.add(id);
-        for (Map.Entry<String, Object> e : fields.entrySet()) {
-            argsList.add(e.getKey());
-            argsList.add(serializeFieldValue(e.getValue()));
-        }
-        argsList.add(String.valueOf(ttl));
-
-        final RedisScript<Long> script = Objects.requireNonNull(LUA_SAVE_PER_ENTITY_SCRIPT, LUA_SAVE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-        final List<String> keys = new ArrayList<>(2);
-        keys.add(Objects.requireNonNull(zKey));
-        keys.add(Objects.requireNonNull(entityKey));
-        final Object[] args = Objects.requireNonNull(argsList.toArray(new Object[0]));
-        redisTemplate.execute(script, keys, args);
-        return entity;
-    }
-
-    /**
-     * 异步保存实体。
-     *
-     * @param entity 要保存的实体，不得为 {@code null}
-     * @return 异步完成时返回已保存实体的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<T> saveAsync(T entity) {
-        if (entity == null) {
-            throw new IllegalArgumentException("entity to saveAsync must not be null");
-        }
-        return CompletableFuture.supplyAsync(() -> {
-            saveAtomic(entity);
-            return entity;
-        }, executor());
-    }
-
-    /**
-     * 异步批量保存实体集合。
-     *
-     * @param entities 要保存的实体集合，不得为 {@code null}
-     * @return 异步完成时返回已保存实体集合的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entities} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public CompletableFuture<Collection<T>> saveRangeAsync(Collection<T> entities) {
         if (entities == null) {
@@ -218,193 +97,81 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         }
         return CompletableFuture.supplyAsync(() -> {
             for (T e : entities) {
-                saveAtomic(e);
+                luaWriter.saveAtomic(e);
             }
             return entities;
-        }, executor());
+        }, getAsyncExecutor());
     }
 
-    /**
-     * 更新实体（等同于保存）。
-     *
-     * @param entity 要更新的实体，不得为 {@code null}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public void update(T entity) {
-        saveAtomic(entity);
-    }
-
-    /**
-     * 异步更新实体。
-     *
-     * @param entity 要更新的实体，不得为 {@code null}
-     * @return 表示异步执行结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<Void> updateAsync(T entity) {
         if (entity == null) {
-            throw new IllegalArgumentException("entity to updateAsync must not be null");
+            throw new IllegalArgumentException("entity to update must not be null");
         }
-        return CompletableFuture.runAsync(() -> saveAtomic(entity), executor());
+        luaWriter.saveAtomic(entity);
     }
 
-    /**
-     * 异步批量更新实体集合。
-     *
-     * @param entities 实体集合，不得为 {@code null}
-     * @return 表示异步执行结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entities} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public CompletableFuture<Void> updateRangeAsync(Collection<T> entities) {
         if (entities == null) {
             throw new IllegalArgumentException("entities to updateRangeAsync must not be null");
         }
-        return CompletableFuture.runAsync(() -> entities.forEach(this::saveAtomic), executor());
+        return CompletableFuture.runAsync(() -> entities.forEach(luaWriter::saveAtomic), getAsyncExecutor());
     }
 
-    /**
-     * 根据 id 删除实体（从索引和对应的 per-entity HASH 中移除）。
-     *
-     * @param id 要删除实体的 id，不得为 {@code null}
-     * @throws IllegalArgumentException 当 {@code id} 为 {@code null}
-     * @since 1.0
-     */
+    // =========================================================================
+    // CRUD — delete
+    // =========================================================================
+
     @Override
     public void deleteById(TID id) {
         if (id == null) {
             throw new IllegalArgumentException("id to deleteById must not be null");
         }
-        final String zKey = Objects.requireNonNull(zSetKey());
-        final String idStr = String.valueOf(id);
-        final String entityKey = getKey(idStr);
-        final RedisScript<Long> script = Objects.requireNonNull(LUA_DELETE_PER_ENTITY_SCRIPT, LUA_DELETE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-        final List<String> keys = new ArrayList<>(2);
-        keys.add(Objects.requireNonNull(zKey));
-        keys.add(Objects.requireNonNull(entityKey));
-        redisTemplate.execute(script, keys, Objects.requireNonNull(idStr));
+        luaWriter.deleteById(id);
     }
 
-    /**
-     * 批量根据 id 集合删除实体（原子执行索引 ZREM 与删除相应的 per-entity HASH）。
-     *
-     * @param ids id 集合，不得为 {@code null} 或包含 {@code null}
-     * @throws IllegalArgumentException 当 {@code ids} 为 {@code null} 或包含 {@code null}
-     * @since 1.0
-     */
     @Override
     public void deleteByIds(Collection<TID> ids) {
         if (ids == null) {
             throw new IllegalArgumentException("ids to deleteByIds must not be null");
         }
-        final String zKey = Objects.requireNonNull(getConfig().getResolvedZSetKey(), "resolvedZSetKey must not be null");
-        final List<String> keys = new ArrayList<>();
-        keys.add(zKey);
-        final List<String> idStrings = new ArrayList<>();
-        for (TID id : ids) {
-            if (id == null) {
-                throw new IllegalArgumentException("id in ids must not be null");
-            }
-            final String s = String.valueOf(id);
-            idStrings.add(s);
-            keys.add(getKey(s));
-        }
-        final RedisScript<Long> script = Objects.requireNonNull(LUA_DELETE_BATCH_PER_ENTITY_SCRIPT, LUA_DELETE_BATCH_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-        final Object[] args = Objects.requireNonNull(idStrings.toArray(new Object[0]));
-        redisTemplate.execute(script, keys, args);
+        luaWriter.deleteByIds(ids);
     }
 
-    /**
-     * 根据实体删除（从索引和存储中移除）。
-     *
-     * @param entity 要删除的实体，不得为 {@code null}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public void delete(T entity) {
         if (entity == null) {
             throw new IllegalArgumentException("entity to delete must not be null");
         }
-        deleteAtomic(entity);
+        luaWriter.deleteAtomic(entity);
     }
 
-    /**
-     * 原子删除实体（内部方法）。
-     *
-     * @param entity 要删除的实体，不得为 {@code null}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
-    public void deleteAtomic(T entity) {
-        if (entity == null) {
-            throw new IllegalArgumentException("entity to deleteAtomic must not be null");
-        }
-        final String id = getId(entity).toString();
-        final String zKey = Objects.requireNonNull(zSetKey());
-        final String entityKey = getKey(id);
-        final RedisScript<Long> script = Objects.requireNonNull(LUA_DELETE_PER_ENTITY_SCRIPT, LUA_DELETE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
-        final List<String> keys = new ArrayList<>(2);
-        keys.add(Objects.requireNonNull(zKey));
-        keys.add(Objects.requireNonNull(entityKey));
-        redisTemplate.execute(script, keys, Objects.requireNonNull(id));
-    }
-
-    /**
-     * 异步删除实体。
-     *
-     * @param entity 要删除的实体，不得为 {@code null}
-     * @return 表示异步执行结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entity} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<Void> deleteAsync(T entity) {
-        if (entity == null) {
-            throw new IllegalArgumentException("entity to deleteAsync must not be null");
-        }
-        return CompletableFuture.runAsync(() -> {
-            try {
-                deleteAtomic(entity);
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        }, executor());
-    }
-
-    /**
-     * 异步批量删除实体集合。
-     *
-     * @param entities 要删除的实体集合，不得为 {@code null}
-     * @return 表示异步执行结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code entities} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public CompletableFuture<Void> deleteRangeAsync(Collection<T> entities) {
         if (entities == null) {
             throw new IllegalArgumentException("entities to deleteRangeAsync must not be null");
         }
-        return CompletableFuture.runAsync(() -> entities.forEach(this::deleteAtomic), executor());
+        return CompletableFuture.runAsync(() -> entities.forEach(luaWriter::deleteAtomic), getAsyncExecutor());
     }
 
-    /**
-     * 按 id 查找实体（同步）。
-     *
-     * <p>实现：从 per-entity HASH 使用 {@code HGETALL}（通过 {@link StringRedisTemplate#opsForHash().entries}）读取所有字段，
-     * 然后使用配置的 {@link EntityBuilder} 将字段映射重建为实体对象。</p>
-     *
-     * @param id 实体 id，不得为 {@code null}
-     * @return 若找到则返回实体，否则返回 {@code null}
-     * @throws IllegalArgumentException 当 {@code id} 为 {@code null}
-     * @throws IllegalStateException    当未配置 {@link EntityBuilder} 或重建失败
-     * @since 1.0
-     */
+    @Override
+    public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
+        if (specification == null) {
+            throw new IllegalArgumentException("specification to deleteRangeAsync must not be null");
+        }
+        return CompletableFuture.runAsync(() -> {
+            Collection<T> entities = findRange(specification);
+            if (entities != null && !entities.isEmpty()) {
+                entities.forEach(luaWriter::deleteAtomic);
+            }
+        }, getAsyncExecutor());
+    }
+
+    // =========================================================================
+    // CRUD — read
+    // =========================================================================
+
     @Override
     public T findById(TID id) {
         if (id == null) {
@@ -416,358 +183,49 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         if (builder == null) {
             throw new IllegalStateException("EntityBuilder must be configured to read from per-entity HASH");
         }
-        return mapHashToEntity(entityKey, builder);
+        return hashMapper.mapHashToEntity(entityKey, builder);
     }
 
-    /**
-     * 异步按 id 查找实体。
-     *
-     * @param id 实体 id，不得为 {@code null}
-     * @return 返回包装了查找结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code id} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<T> findByIdAsync(TID id) {
-        if (id == null) {
-            throw new IllegalArgumentException("id to findByIdAsync must not be null");
-        }
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return findById(id);
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        }, executor());
-    }
-
-    /**
-     * 根据规格查找单个实体（同步）。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return 满足规格的实体，若找到多个则返回第一个；若未找到则返回 {@code null}
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public T findOne(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to findOne must not be null");
         }
-        return findOneWithBatch(specification);
+        return batchScanner.findOneWithBatch(specification);
     }
 
-    /**
-     * 根据规格查找实体集合（同步）。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return 满足规格的实体集合
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @since 1.0
-     */
     @Override
     public Collection<T> findRange(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to findRange must not be null");
         }
-        return findRangeWithBatch(specification, 0, -1);
+        return batchScanner.findRangeWithBatch(specification, 0, -1);
     }
 
-    /**
-     * 异步根据规格查找单个实体。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return 异步结果，包含找到的实体或 null
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<T> findOneAsync(ISpecification<T> specification) {
-        if (specification == null) {
-            throw new IllegalArgumentException("specification to findOneAsync must not be null");
-        }
-        return CompletableFuture.supplyAsync(() -> findOne(specification), executor());
-    }
+    // =========================================================================
+    // count / page
+    // =========================================================================
 
-    /**
-     * 根据规格异步删除实体（先查出匹配实体然后逐个删除）。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return {@link CompletableFuture} 表示异步结果
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
-        if (specification == null) {
-            throw new IllegalArgumentException("specification to deleteRangeAsync must not be null");
-        }
-        return CompletableFuture.runAsync(() -> {
-            Collection<T> entities = findRange(specification);
-            if (entities != null && !entities.isEmpty()) {
-                entities.forEach(this::deleteAtomic);
-            }
-        }, executor());
-    }
-
-    /**
-     * 内部：逐 key 读取 HASH entries 的帮助方法（可被 pipeline 优化以提升性能）。
-     *
-     * @param keyList 需要读取的实体 key 列表
-     * @return 与 keyList 顺序对应的 Map 列表（不存在的 key 对应 null）
-     * @since 1.0
-     */
-    private List<Map<Object, Object>> multiGetHashes(List<String> keyList) {
-        if (keyList.isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<Object> results = redisTemplate.executePipelined(
-            new org.springframework.data.redis.core.SessionCallback<Object>() {
-                @Override
-                @SuppressWarnings("unchecked")
-                public <K, V> Object execute(org.springframework.data.redis.core.RedisOperations<K, V> operations) {
-                    for (String k : keyList) {
-                        operations.opsForHash().entries((K) k);
-                    }
-                    return null;
-                }
-            });
-        List<Map<Object, Object>> list = new ArrayList<>(results.size());
-        for (Object result : results) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> m = (Map<Object, Object>) result;
-            list.add(m == null || m.isEmpty() ? null : m);
-        }
-        return list;
-    }
-
-    /**
-     * 根据 redis HASH key 获取 fields 并转换为实体。
-     * @param redisKey HASH key
-     * @param builder  实体构建器
-     * @return 实体对象或 null
-     */
-    private T mapHashToEntity(String redisKey, EntityBuilder<T> builder) {
-        final String actualRedisKey = Objects.requireNonNull(redisKey, "redisKey must not be null");
-        Map<Object, Object> fields = redisTemplate.opsForHash().entries(actualRedisKey);
-        if (fields.isEmpty()) {
-            return null;
-        }
-        try {
-            return builder.buildEntity(fields);
-        } catch (Exception ex) {
-            log.warn("Failed to build entity from hash fields for key: {}, {}", redisKey, ex.getMessage());
-            return null;
-        }
-    }
-
-    private void validateSpecificationAndBatch(ISpecification<T> specification) {
-        if (specification == null) {
-            throw new IllegalArgumentException("specification must not be null");
-        }
-        if (getConfig().getBatchSize() <= 0) {
-            throw new IllegalStateException("batchSize must be > 0");
-        }
-    }
-
-    private List<T> buildEntities(List<Map<Object, Object>> hashes) {
-        final EntityBuilder<T> builder = getConfig().getEntityBuilder();
-        final List<T> results = new ArrayList<>(hashes.size());
-        for (Map<Object, Object> fields : hashes) {
-            if (fields == null) {
-                continue;
-            }
-            try {
-                final T entity = builder.buildEntity(fields);
-                if (entity != null) {
-                    results.add(entity);
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to build entity: {}", ex.getMessage());
-            }
-        }
-        return results;
-    }
-
-    private List<T> filterMatchingEntities(List<T> entities, ISpecification<T> specification) {
-        final List<T> matches = new ArrayList<>();
-        for (T entity : entities) {
-            if (Boolean.TRUE.equals(specification.isSatisfiedBy(entity))) {
-                matches.add(entity);
-            }
-        }
-        return matches;
-    }
-
-    private long calculateFetchEnd(long requestedEnd, long currentStart) {
-        return requestedEnd == -1 ? currentStart + getConfig().getBatchSize() - 1 : Math.min(requestedEnd, currentStart + getConfig().getBatchSize() - 1);
-    }
-
-    private boolean shouldStopFetching(long requestedEnd, long fetchEnd, int fetchedSize) {
-        if (requestedEnd != -1 && fetchEnd >= requestedEnd) {
-            return true;
-        }
-        return requestedEnd == -1 && fetchedSize < getConfig().getBatchSize();
-    }
-
-    private T findOneWithBatch(ISpecification<T> specification) {
-        validateSpecificationAndBatch(specification);
-
-        long start = 0L;
-        long end = getConfig().getBatchSize() - 1L;
-        final String zKey = Objects.requireNonNull(zSetKey());
-
-        while (true) {
-            final Set<?> ids = redisTemplate.opsForZSet().range(zKey, start, end);
-            if (ids == null || ids.isEmpty()) {
-                return null;
-            }
-
-            final List<String> keyList = ids.stream()
-                    .map(item -> Objects.requireNonNull(item, ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL))
-                    .map(item -> {
-                        String itemId = Objects.requireNonNull(item.toString(), ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL);
-                        return getKey(itemId);
-                    })
-                    .collect(Collectors.toList());
-            final List<Map<Object, Object>> hashes = multiGetHashes(keyList);
-            T found = filterMatchingEntities(buildEntities(hashes), specification).stream()
-                    .findFirst()
-                    .orElse(null);
-            if (found != null) {
-                return found;
-            }
-
-            start += getConfig().getBatchSize();
-            end += getConfig().getBatchSize();
-        }
-    }
-
-    private Collection<T> findRangeWithBatch(ISpecification<T> specification, long start, long end) {
-        validateSpecificationAndBatch(specification);
-
-        final List<T> results = new ArrayList<>();
-        long currentStart = start;
-        final String zKey = Objects.requireNonNull(zSetKey());
-
-        boolean finished = false;
-        while (!finished) {
-            final long fetchEnd = calculateFetchEnd(end, currentStart);
-            final Set<?> ids = redisTemplate.opsForZSet().range(zKey, currentStart, fetchEnd);
-            if (ids == null || ids.isEmpty()) {
-                finished = true;
-            } else {
-                final List<String> keyList = ids.stream()
-                        .map(item -> Objects.requireNonNull(item, ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL))
-                        .map(item -> {
-                            String itemId = Objects.requireNonNull(item.toString(), ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL);
-                            return getKey(itemId);
-                        })
-                        .collect(Collectors.toList());
-                final List<Map<Object, Object>> hashes = multiGetHashes(keyList);
-                results.addAll(filterMatchingEntities(buildEntities(hashes), specification));
-
-                if (shouldStopFetching(end, fetchEnd, ids.size())) {
-                    finished = true;
-                } else {
-                    currentStart += getConfig().getBatchSize();
-                }
-            }
-        }
-        return results;
-    }
-
-    /**
-     * 异步根据规格查找实体集合。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return 返回包装了查找结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @since 1.0
-     */
-    @Override
-    public CompletableFuture<Collection<T>> findRangeAsync(ISpecification<T> specification) {
-        if (specification == null) {
-            throw new IllegalArgumentException("specification to findRangeAsync must not be null");
-        }
-        return CompletableFuture.supplyAsync(() -> findRange(specification), executor());
-    }
-
-    /**
-     * 根据规格统计实体数量（同步）。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @return 满足规格的实体数量
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
-     * @throws IllegalStateException    当 {@code batchSize} 配置不正确
-     * @since 1.0
-     */
     @Override
     public long count(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to count must not be null");
         }
-        if (getConfig().getBatchSize() <= 0) {
-            throw new IllegalStateException("batchSize must be > 0");
-        }
-
-        final String zKey = Objects.requireNonNull(zSetKey());
-        long start = 0L;
-        long end = getConfig().getBatchSize() - 1L;
-        long result = 0L;
-
-        while (true) {
-            final Set<?> ids = redisTemplate.opsForZSet().range(zKey, start, end);
-            if (ids == null || ids.isEmpty()) {
-                return result;
-            }
-            final List<String> keyList = ids.stream()
-                    .map(item -> Objects.requireNonNull(item, ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL))
-                    .map(item -> {
-                        String itemId = Objects.requireNonNull(item.toString(), ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL);
-                        return getKey(itemId);
-                    })
-                    .collect(Collectors.toList());
-            final EntityBuilder<T> builder = getConfig().getEntityBuilder();
-            long matched = 0L;
-            for (String key : keyList) {
-                T t = mapHashToEntity(key, builder);
-                if (t != null && specification.isSatisfiedBy(t)) {
-                    matched++;
-                }
-            }
-
-            result += matched;
-            start += getConfig().getBatchSize();
-            end += getConfig().getBatchSize();
-        }
+        return batchScanner.countOptimized(specification);
     }
 
     /**
-     * 异步统计满足规格的实体数量。
+     * 统计所有实体数量（无条件）。
      *
-     * @param specification 规格，不得为 {@code null}
-     * @return 返回包装了统计结果的 {@link CompletableFuture}
-     * @throws IllegalArgumentException 当 {@code specification} 为 {@code null}
+     * @return 当前仓储所有实体数量
+     * @author Jayden.Liang
      * @since 1.0
      */
-    @Override
-    public CompletableFuture<Long> countAsync(ISpecification<T> specification) {
-        if (specification == null) {
-            throw new IllegalArgumentException("specification to countAsync must not be null");
-        }
-        return CompletableFuture.supplyAsync(() -> count(specification), executor());
+    public long count() {
+        Long total = redisTemplate.opsForZSet().size(Objects.requireNonNull(zSetKey()));
+        return total == null ? 0L : total;
     }
 
-    /**
-     * 分页查询。
-     *
-     * @param specification 规格，不得为 {@code null}
-     * @param pageQuery     分页查询参数，不得为 {@code null}
-     * @return 分页结果，包含当前页数据及总记录数
-     * @throws IllegalArgumentException 当参数不合法时抛出（例如 page 或 pageSize 小于 1）
-     * @since 1.0
-     */
     @Override
     public IPageResult<T> page(ISpecification<T> specification, PageQuery pageQuery) {
         if (specification == null) {
@@ -783,14 +241,74 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalArgumentException("Page size must be greater than 0, actual: " + pageQuery.getPageSize());
         }
 
-        final Collection<T> allMatched = findRangeWithBatch(specification, 0, -1);
+        if (!batchScanner.hasWhereFilters(specification)) {
+            return pageOptimized(specification, pageQuery);
+        }
+
+        final Collection<T> allMatched = batchScanner.findRangeWithBatch(specification, 0, -1);
         final List<T> matchedList = new ArrayList<>(allMatched);
         final long total = matchedList.size();
         final int fromIndex = (int) Math.min((long) (pageQuery.getPage() - 1) * pageQuery.getPageSize(), total);
         final int toIndex = (int) Math.min((long) fromIndex + pageQuery.getPageSize(), total);
-        final List<T> pageRecords = matchedList.subList(fromIndex, toIndex);
+        final List<T> pageRecords = new ArrayList<>(matchedList.subList(fromIndex, toIndex));
         return new RedisPageResultAdapter<>(pageRecords, pageQuery, total);
     }
+
+    /**
+     * 优化分页路径：无 WHERE 过滤时，直接使用 ZSET 原生命令。
+     * <ul>
+     *   <li>ZCARD — O(1) 获取总数</li>
+     *   <li>ZRANGE with offset/count — O(log N + M) 仅获取当前页 ID</li>
+     *   <li>Pipeline HGETALL — 仅读取当前页实体</li>
+     * </ul>
+     */
+    private IPageResult<T> pageOptimized(ISpecification<T> specification, PageQuery pageQuery) {
+        final String zKey = Objects.requireNonNull(zSetKey());
+        final long total = batchScanner.countOptimized(specification);
+
+        final int page = pageQuery.getPage();
+        final int pageSize = pageQuery.getPageSize();
+        final long offset = (long) (page - 1) * pageSize;
+
+        if (offset >= total) {
+            return new RedisPageResultAdapter<>(Collections.emptyList(), pageQuery, total);
+        }
+
+        final Set<?> ids = redisTemplate.opsForZSet().range(zKey, offset, offset + pageSize - 1);
+        if (ids == null || ids.isEmpty()) {
+            return new RedisPageResultAdapter<>(Collections.emptyList(), pageQuery, total);
+        }
+
+        final List<String> keyList = ids.stream()
+                .map(item -> Objects.requireNonNull(item, ERROR_ID_FROM_ZSET_RANGE_MUST_NOT_BE_NULL))
+                .map(item -> getKey(item.toString()))
+                .collect(Collectors.toList());
+
+        final List<Map<Object, Object>> hashes = fetchHashes(keyList);
+        final List<T> records = hashMapper.buildEntities(hashes);
+
+        return new RedisPageResultAdapter<>(records, pageQuery, total);
+    }
+
+    // =========================================================================
+    // Protected fetchHashes — overridable for test compatibility
+    // =========================================================================
+
+    /**
+     * Batch-read HASH entries for the given keys (pipeline).
+     * Subclasses may override this method (e.g. for testing without pipeline mocks).
+     *
+     * @param keyList entity key list
+     * @return list of field maps (null for missing keys)
+     * @since 1.0
+     */
+    protected List<Map<Object, Object>> fetchHashes(List<String> keyList) {
+        return hashMapper.fetchHashes(keyList);
+    }
+
+    // =========================================================================
+    // Accessor / SPI methods
+    // =========================================================================
 
     protected final String serialize(T entity) {
         try {
@@ -822,7 +340,6 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         }
         return k;
     }
-
 
     /**
      * 使用配置的 {@link IdExtractor} 从实体中提取 id。
@@ -868,7 +385,8 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
      * @return 异步执行器
      * @since 1.0
      */
-    private Executor executor() {
+    @Override
+    public Executor getAsyncExecutor() {
         Executor exe = getConfig().getAsyncExecutor();
         return exe != null ? exe : ForkJoinPool.commonPool();
     }
@@ -889,87 +407,28 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         return prefix + id;
     }
 
-    private String serializeFieldValue(Object value) {
-        if (value == null) {
-            return "";
-        }
-        if (value instanceof String || value instanceof Number || value instanceof Boolean || value instanceof Character) {
-            return String.valueOf(value);
-        }
-        // Prefer a configured FieldValueSerializer if provided
-        final FieldValueSerializer fvs = getConfig().getFieldValueSerializer();
-        if (fvs != null) {
-            try {
-                String s = fvs.serialize(value);
-                if (s != null) {
-                    return s;
-                }
-            } catch (Exception ex) {
-                log.warn("Failed to serialize field value with FieldValueSerializer: {}", ex.getMessage());
-                // fallback to default JsonUtil below
-            }
-        }
-        try {
-            return JsonUtil.serialize(value);
-        } catch (Exception ex) {
-            log.warn("Failed to serialize field value with JsonUtil: {}", ex.getMessage());
-            // Last resort: use toString()
-            return String.valueOf(value);
-        }
-    }
-
-    /**
-     * 统计所有实体数量（无条件）。
-     *
-     * @return 当前仓储所有实体数量
-     * @author Jayden.Liang
-     * @since 1.0
-     */
-    public long count() {
-        Long total = redisTemplate.opsForZSet().size(Objects.requireNonNull(zSetKey()));
-        return total == null ? 0L : total;
-    }
-
     // -------------------------------------------------------------------------
-    // ISpecificationExecutor SPI — Redis 当前不支持表达式下推，全部降级为内存过滤
+    // ISpecificationExecutor SPI
     // -------------------------------------------------------------------------
 
-    /**
-     * Redis 执行器当前不支持将表达式下推为 Redis 命令，返回 {@code null}。
-     * 所有查询均通过批量扫描 + 内存 {@code isSatisfiedBy()} 过滤完成。
-     *
-     * @return {@code null}
-     */
     @Override
     public org.plain.specification.core.visitor.IExpressionVisitor<T, ?> getVisitor() {
-        return null;
+        throw new UnsupportedOperationException(
+                "Redis repository does not support expression pushdown; all filtering is performed in-memory via batch scan");
     }
 
-    /**
-     * 执行查询，委托给 {@link #findRange(ISpecification)} 并将结果转为 List。
-     */
     @Override
     public List<T> execute(ISpecification<T> specification) {
         return new ArrayList<>(findRange(specification));
     }
 
-    /**
-     * 执行分页查询，委托给 {@link #page(ISpecification, PageQuery)}。
-     */
     @Override
     public IPageResult<T> execute(ISpecification<T> specification, PageQuery pageQuery) {
         return page(specification, pageQuery);
     }
 
-    /**
-     * Redis 执行器当前不支持任何表达式下推，返回空集合。
-     * 所有查询均通过内存过滤完成。
-     *
-     * @return 空集合
-     */
     @Override
     public Set<Class<? extends org.plain.specification.core.expression.IExpression<T>>> supportedExpressions() {
         return Collections.emptySet();
     }
 }
-

@@ -7,10 +7,7 @@ import java.io.Serializable;
 
 
 /**
- * 分页查询参数
- */
-/**
- * Class PageQuery.
+ * 分页查询参数。
  *
  * @author Jayden.Liang
  */

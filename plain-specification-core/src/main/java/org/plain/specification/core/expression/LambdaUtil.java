@@ -8,7 +8,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /**
- * Class LambdaUtil.
+ * Lambda 表达式工具类，用于从 SFunction 中提取方法名和字段名。
  *
  * @author Jayden.Liang
  */

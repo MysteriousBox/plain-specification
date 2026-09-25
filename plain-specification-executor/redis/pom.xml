@@ -5,20 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.plain</groupId>
-        <artifactId>plain-specification</artifactId>
+        <artifactId>plain-specification-executor</artifactId>
         <version>1.0-SNAPSHOT</version>
-        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>plain-specification-executor-redis</artifactId>
     <packaging>jar</packaging>
-    <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Use versions managed by parent pom -->
-        <json.version>20231013</json.version>
-    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.plain</groupId>
@@ -34,7 +27,6 @@
         <dependency>
             <groupId>javax.validation</groupId>
             <artifactId>validation-api</artifactId>
-            <version>2.0.1.Final</version>
         </dependency>
 
         <!-- Test deps (versions managed by parent pom's dependencyManagement) -->
@@ -78,15 +70,5 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.22.2</version>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>

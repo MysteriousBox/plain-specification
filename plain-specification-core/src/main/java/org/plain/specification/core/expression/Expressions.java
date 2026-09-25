@@ -61,7 +61,7 @@ public class Expressions<T> {
      */
     public Expressions<T> and() {
         if (currentLeft == null){
-            throw new IllegalArgumentException("Expression syntax error ,left is null");
+            throw new IllegalArgumentException("Expression syntax error, left is null");
         }
         currentOperator = ExpressionOperatorEnum.AND;
         return this;
@@ -75,7 +75,7 @@ public class Expressions<T> {
      */
     public Expressions<T> and(IExpression<T> right) {
         if (currentLeft == null){
-            throw new IllegalArgumentException("Expression syntax error ,left is null");
+            throw new IllegalArgumentException("Expression syntax error, left is null");
         }
         currentLeft = new AndExpression<>(currentLeft, right);
         return this;
@@ -270,11 +270,11 @@ public class Expressions<T> {
     }
 
     public <V extends Comparable<V>> Expressions<T> orderBy(SFunction<T, V> left) {
-        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.naturalOrder())));
+        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.naturalOrder()), true));
     }
 
     public <V extends Comparable<V>> Expressions<T> orderByDescending(SFunction<T, V> left) {
-        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.reverseOrder())));
+        return composite(new OrderExpression<>(left, Comparator.nullsLast(Comparator.reverseOrder()), false));
     }
 
     public <V extends Comparable<V>> Expressions<T> notNull(SFunction<T,V> left){

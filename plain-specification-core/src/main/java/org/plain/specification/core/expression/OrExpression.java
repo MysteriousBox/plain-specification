@@ -4,14 +4,10 @@ import lombok.Getter;
 import org.plain.specification.core.visitor.IExpressionVisitor;
 
 /**
- * 或 逻辑运算符表达式
- * @author Jayden.Liang
- * @param <T>
- */
-/**
- * Class OrExpression.
+ * OR 逻辑组合表达式。
  *
  * @author Jayden.Liang
+ * @param <T> 实体类型
  */
 @Getter
 public class OrExpression <T>  implements IExpression<T> {

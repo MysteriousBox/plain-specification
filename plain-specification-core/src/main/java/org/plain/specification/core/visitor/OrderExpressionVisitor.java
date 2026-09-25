@@ -5,7 +5,7 @@ import org.plain.specification.core.expression.OrderExpression;
 import java.util.Comparator;
 
 /**
- * Class OrderExpressionVisitor.
+ * 排序表达式访问器，收集排序条件并生成排序配置。
  *
  * @author Jayden.Liang
  */

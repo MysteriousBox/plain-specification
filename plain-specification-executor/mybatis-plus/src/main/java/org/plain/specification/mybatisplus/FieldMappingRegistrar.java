@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Class FieldMappingRegistrar.
+ * 字段映射注册器，提供实体类字段映射的注册和查询功能。
  *
  * @author Jayden.Liang
  */
