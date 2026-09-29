@@ -37,7 +37,7 @@ public class SpecificationBuilder<T> implements IOrderedSpecificationBuilder<T> 
 
     @Override
     public ISpecificationBuilder<T> where(Expressions<T> expression, boolean condition) {
-        if (condition) {
+        if (condition && (expression == null || !expression.isEmpty())) {
             WhereExpressionInfo<T> whereExpressionInfo = new WhereExpressionInfo<>(expression,
                     new PredicateExpressionVisitor<>());
             specification.add(whereExpressionInfo);

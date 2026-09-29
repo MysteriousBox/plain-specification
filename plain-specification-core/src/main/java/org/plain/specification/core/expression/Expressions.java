@@ -296,6 +296,18 @@ public class Expressions<T> {
         return currentLeft;
     }
 
+    /**
+     * 没有任何条件被加入。
+     * <p>
+     * 与 {@link #build()} 面对的“语法错误”不同：全可选过滤条件都留空是合法状态，
+     * 但此时 {@code currentLeft} 为 null，编译它会抛 NPE。
+     *
+     * @return true 表示未加入任何条件
+     */
+    public boolean isEmpty() {
+        return currentLeft == null;
+    }
+
     public <R> ExpressionCompiler<R> compiler(IExpressionVisitor<T,R> visitor){
         return new ExpressionCompiler<>(visitor);
     }

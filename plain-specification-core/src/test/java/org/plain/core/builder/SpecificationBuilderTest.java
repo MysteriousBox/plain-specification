@@ -35,6 +35,15 @@ class SpecificationBuilderTest {
     }
 
     @Test
+    void where_withNoConditions_shouldRegisterNothingAndMatchEverything() {
+        Specification<User> spec = new Specification<>();
+        spec.query().where(Expressions.<User>create());
+        assertFalse(spec.getWhereExpressions().iterator().hasNext());
+        assertTrue(spec.isSatisfiedBy(new User("Bob", 20)));
+        assertTrue(spec.isSatisfiedBy(new User("Alice", 30)));
+    }
+
+    @Test
     void orderBy_withTrueCondition_shouldAddOrder() {
         Specification<User> spec = new Specification<>();
         spec.query().orderBy(Expressions.<User>create().orderBy(User::getAge), true);
