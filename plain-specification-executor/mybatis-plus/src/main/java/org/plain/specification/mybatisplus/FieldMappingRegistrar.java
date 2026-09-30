@@ -43,6 +43,10 @@ public class FieldMappingRegistrar {
                 }
             }
         }
+        // 主键不在 getFieldList() 里，单独登记，否则 X::getId 这类条件解析不到列名。
+        if (tableInfo.getKeyProperty() != null && tableInfo.getKeyColumn() != null) {
+            fieldMapping.put(tableInfo.getKeyProperty(), tableInfo.getKeyColumn());
+        }
         FieldMappingRegistry.register(domainClass, fieldMapping);
     }
 

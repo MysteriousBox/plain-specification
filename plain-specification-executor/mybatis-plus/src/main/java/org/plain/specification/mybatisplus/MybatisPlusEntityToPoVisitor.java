@@ -6,6 +6,7 @@ import org.plain.specification.core.expression.*;
 import org.plain.specification.core.visitor.AbstractExpressionVisitor;
 
 import java.lang.invoke.SerializedLambda;
+import java.util.Map;
 
 /**
  * 实体到 PO 转换访问器，将领域对象字段映射为 MyBatis-Plus 持久化对象。
@@ -18,31 +19,57 @@ public class MybatisPlusEntityToPoVisitor <T,PO> extends AbstractExpressionVisit
 
     private final QueryWrapper<PO> wrapper ;
 
-    public MybatisPlusEntityToPoVisitor() {
-        super();
+    /**
+     * Specification 的实体类型。方法引用指向继承自基类的 getter（如 {@code Role::getId}）时，
+     * lambda 里只能看到声明类 {@code AbstractEntity}，注册表按具体实体注册，必须靠它定位映射。
+     * 为 null 时退回按 lambda 声明类查找。
+     */
+    private final Class<?> domainClass;
 
-        wrapper = Wrappers.query();
+    public MybatisPlusEntityToPoVisitor() {
+        this(Wrappers.query(), null);
     }
 
     public MybatisPlusEntityToPoVisitor(QueryWrapper<PO> wrapper) {
+        this(wrapper, null);
+    }
+
+    public MybatisPlusEntityToPoVisitor(Class<?> domainClass) {
+        this(Wrappers.query(), domainClass);
+    }
+
+    public MybatisPlusEntityToPoVisitor(QueryWrapper<PO> wrapper, Class<?> domainClass) {
         super();
         this.wrapper = wrapper;
+        this.domainClass = domainClass;
     }
 
     private String resolveColumn(java.io.Serializable lambda) {
         SerializedLambda serialize = MpFieldNameResolver.serialize(lambda);
-        return FieldMappingRegistry.getColumn(
-                MpFieldNameResolver.getDomainClass(serialize),
-                MpFieldNameResolver.resolve(serialize));
+        String property = MpFieldNameResolver.resolve(serialize);
+        if (domainClass != null) {
+            Map<String, String> mapping = FieldMappingRegistry.getFieldMapping(domainClass);
+            if (mapping != null) {
+                String column = mapping.get(property);
+                if (column != null) {
+                    return column;
+                }
+            }
+        }
+        return FieldMappingRegistry.getColumn(MpFieldNameResolver.getDomainClass(serialize), property);
+    }
+
+    private MybatisPlusEntityToPoVisitor<T, PO> nested(QueryWrapper<PO> innerWrapper) {
+        return new MybatisPlusEntityToPoVisitor<>(innerWrapper, domainClass);
     }
 
     @Override
     public QueryWrapper<PO> visitAnd(AndExpression<T> expression) {
         wrapper.nested(left -> {
-            expression.getLeft().accept(new MybatisPlusEntityToPoVisitor<>(left));
+            expression.getLeft().accept(nested(left));
         });
         wrapper.nested(right->{
-            expression.getRight().accept(new MybatisPlusEntityToPoVisitor<>(right));
+            expression.getRight().accept(nested(right));
         });
         return wrapper;
     }
@@ -50,18 +77,18 @@ public class MybatisPlusEntityToPoVisitor <T,PO> extends AbstractExpressionVisit
     @Override
     public QueryWrapper<PO> visitOr(OrExpression<T> expression) {
         wrapper.nested(left -> {
-            expression.getLeft().accept(new MybatisPlusEntityToPoVisitor<>(left));
+            expression.getLeft().accept(nested(left));
         });
         wrapper.or();
         wrapper.nested(right->{
-            expression.getRight().accept(new MybatisPlusEntityToPoVisitor<>(right));
+            expression.getRight().accept(nested(right));
         });
         return wrapper;
     }
 
     @Override
     public QueryWrapper<PO> visitNot(NotExpression<T> expression) {
-        return wrapper.not(inner->expression.getExpression().accept(new MybatisPlusEntityToPoVisitor<>(inner)));
+        return wrapper.not(inner->expression.getExpression().accept(nested(inner)));
     }
 
 

@@ -3,6 +3,7 @@ package org.plain.specification.mybatisplus;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.ReflectionKit;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,8 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
 
     protected final BaseMapper<P> baseMapper;
     protected final IConverter<T, P> converter;
+
+    private volatile Class<?> entityClass;
 
     public MybatisPlusBaseRepositoryOfP(BaseMapper<P> baseMapper, IConverter<T, P> converter, Executor executor) {
         super(executor);
@@ -162,7 +165,7 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
     // -------------------------------------------------------------------------
 
     protected QueryWrapper<P> compileToPo(ISpecification<T> specification) {
-        MybatisPlusEntityToPoVisitor<T, P> visitor = new MybatisPlusEntityToPoVisitor<>();
+        MybatisPlusEntityToPoVisitor<T, P> visitor = new MybatisPlusEntityToPoVisitor<>(entityClass());
         QueryWrapper<P> queryWrapper = Wrappers.query();
         for (IExpressionDescriptor<T> whereExpression : specification.getWhereExpressions()) {
             queryWrapper = whereExpression.func(visitor);
@@ -175,6 +178,21 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
 
     @Override
     public IExpressionVisitor<T, ?> getVisitor() {
-        return new MybatisPlusEntityToPoVisitor<>();
+        return new MybatisPlusEntityToPoVisitor<>(entityClass());
+    }
+
+    /**
+     * Specification 的实体类型，用于定位 {@link FieldMappingRegistry} 里的字段映射。
+     * 解析不出来时返回 null，访问器退回按 lambda 声明类查找。
+     */
+    protected Class<?> entityClass() {
+        Class<?> resolved = entityClass;
+        if (resolved == null) {
+            resolved = ReflectionKit.getSuperClassGenericType(getClass(), MybatisPlusBaseRepositoryOfP.class, 0);
+            if (resolved != null) {
+                entityClass = resolved;
+            }
+        }
+        return resolved;
     }
 }
