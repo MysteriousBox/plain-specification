@@ -2,13 +2,20 @@ package org.plain.specification.mybatisplus.autoconfig;
 
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import org.junit.jupiter.api.Test;
+import org.plain.specification.core.spi.ITenantProvider;
+import org.plain.specification.mybatisplus.context.PlainTenantLineHandler;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -76,6 +83,53 @@ class MybatisPlusAutoConfigurationTest {
                 });
     }
 
+    @Test
+    void tenantEnabledWithoutProvider_shouldFail() {
+        contextRunner
+                .withPropertyValues("plain.tenant.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalStateException.class)
+                            .hasMessageContaining("ITenantProvider");
+                });
+    }
+
+    @Test
+    void tenantEnabledWithProvider_shouldRegisterTenantInterceptorBeforePagination() {
+        contextRunner
+                .withPropertyValues("plain.tenant.enabled=true", "plain.tenant.ignore-tables=client")
+                .withUserConfiguration(TenantProviderConfig.class)
+                .run(context -> {
+                    MybatisPlusInterceptor interceptor = context.getBean(MybatisPlusInterceptor.class);
+                    assertThat(interceptor.getInterceptors())
+                            .first().isInstanceOf(TenantLineInnerInterceptor.class);
+                    assertThat(interceptor.getInterceptors())
+                            .last().isInstanceOf(PaginationInnerInterceptor.class);
+
+                    PlainTenantLineHandler handler = context.getBean(PlainTenantLineHandler.class);
+                    assertThat(handler.ignoreTable("schema_client.\"CLIENT\"")).isTrue();
+                    assertThat(handler.ignoreTable("user_role")).isFalse();
+                });
+    }
+
+    @Test
+    void taskDecorator_shouldBeAppliedToAsyncExecutor() {
+        contextRunner
+                .withUserConfiguration(MarkingTaskDecoratorConfig.class)
+                .run(context -> {
+                    ThreadPoolTaskExecutor executor = context.getBean(ThreadPoolTaskExecutor.class);
+                    CountDownLatch latch = new CountDownLatch(1);
+                    AtomicBoolean decorated = new AtomicBoolean();
+                    executor.execute(() -> {
+                        decorated.set(MarkingTaskDecoratorConfig.MARKED.get());
+                        latch.countDown();
+                    });
+                    assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+                    assertThat(decorated).isTrue();
+                });
+    }
+
     @Configuration
     static class CustomExecutorConfig {
         @Bean
@@ -89,6 +143,32 @@ class MybatisPlusAutoConfigurationTest {
         @Bean
         public MybatisPlusInterceptor customInterceptor() {
             return new MybatisPlusInterceptor();
+        }
+    }
+
+    @Configuration
+    static class TenantProviderConfig {
+        @Bean
+        public ITenantProvider tenantProvider() {
+            return () -> "000000";
+        }
+    }
+
+    @Configuration
+    static class MarkingTaskDecoratorConfig {
+
+        static final ThreadLocal<Boolean> MARKED = new ThreadLocal<>();
+
+        @Bean
+        public TaskDecorator markingDecorator() {
+            return runnable -> () -> {
+                MARKED.set(Boolean.TRUE);
+                try {
+                    runnable.run();
+                } finally {
+                    MARKED.remove();
+                }
+            };
         }
     }
 }

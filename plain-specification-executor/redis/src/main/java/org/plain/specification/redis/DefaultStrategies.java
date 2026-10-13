@@ -1,6 +1,7 @@
 package org.plain.specification.redis;
 
 import org.plain.utils.JsonUtil;
+import org.plain.specification.core.spi.ITenantProvider;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -346,9 +347,9 @@ public final class DefaultStrategies {
      * @param env 环境标识
      * @param tenantProvider 租户ID提供器
      * @return KeyPrefixProvider 实例
-     * @see DefaultKeyPrefixProvider#enterpriseKeyPrefixProvider(String, TenantProvider)
+     * @see DefaultKeyPrefixProvider#enterpriseKeyPrefixProvider(String, ITenantProvider)
      */
-    public static RedisRepositoryConfig.KeyPrefixProvider enterpriseKeyPrefixProvider(String env, TenantProvider tenantProvider) {
+    public static RedisRepositoryConfig.KeyPrefixProvider enterpriseKeyPrefixProvider(String env, ITenantProvider tenantProvider) {
         return DefaultKeyPrefixProvider.enterpriseKeyPrefixProvider(env, tenantProvider);
     }
 

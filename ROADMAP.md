@@ -3,9 +3,9 @@
 ## 项目现状评估
 
 ### 基本信息
-- **版本**: 1.0-SNAPSHOT（尚未发布正式版）
+- **版本**: 0.2.0-SNAPSHOT（尚未发布正式版）
 - **Java 基线**: JDK 8
-- **测试**: 251 个测试用例全部通过
+- **测试**: 266 个测试用例全部通过
 - **TODO/FIXME**: 0（代码干净）
 
 ### 模块结构
@@ -110,11 +110,19 @@ plain-specification/
 | `IsNull` / `IsNotNull` | HASH 字段存在性检查 | 低 |
 | `OrderBy` | ZSET 天然有序，直接利用 | 低 |
 
-#### 2.5 排序求值器 [优先级: 中]
-- [ ] 实现 `OrderEvaluator`，在 `InMemorySpecificationEvaluator` 默认构造中注册
-- [ ] 排序应在过滤之后应用
+#### 2.5 排序求值器 ✅ 完成
+- [x] 实现 `OrderEvaluator`，在 `InMemorySpecificationEvaluator` 默认构造中注册
+- [x] 排序在过滤之后应用
 
-#### 2.6 更多存储后端 [优先级: 中]
+#### 2.6 租户上下文统一 ✅ 完成
+- [x] `core/spi/ITenantProvider` SPI：存储后端不自持 ThreadLocal，租户由使用方提供
+- [x] 删除 `mybatisplus.context.TenantContext`（`setTenantId` 全工作区零调用点，导致 `plain.tenant.enabled=true` 时恒返回 `NULL`）
+- [x] `PlainTenantLineHandler` 改构造注入 + 可配 `plain.tenant.{enabled,column,ignore-tables}`；`enabled=true` 缺 provider 时启动失败
+- [x] 租户字面量一律加引号（零填充租户 `000000` 不再被 `Long.parseLong` 写成 `0`）
+- [x] 异步执行器可应用 `TaskDecorator`（平台侧 `UserContextTaskDecorator` 传播上下文）
+- [x] redis 模块 `TenantProvider` 统一到 `ITenantProvider`，并移除返回 `null` 的默认 bean
+
+#### 2.7 更多存储后端 [优先级: 中]
 | 后端 | 价值 | 复杂度 |
 |---|---|---|
 | **Elasticsearch** | 全文搜索 + 结构化查询 | 高 |
@@ -122,10 +130,10 @@ plain-specification/
 | **JPA/Hibernate** | 覆盖传统 JPA 用户 | 中 |
 | **内存集合 (Collections)** | 零依赖纯内存实现 | 低 |
 
-#### 2.7 动态 Specification [优先级: 中]
+#### 2.8 动态 Specification [优先级: 中]
 运行时动态构建表达式，适用于 REST API 通用查询接口、管理后台筛选器。
 
-#### 2.8 Specification 组合器 [优先级: 低]
+#### 2.9 Specification 组合器 [优先级: 低]
 支持多个 Specification 的 AND/OR/NOT 组合。
 
 ---
@@ -175,13 +183,14 @@ Phase 1: 稳定化与质量基线 (v0.1)
   ✅ README / CONTRIBUTING / Maven Central 准备
 
 Phase 2: 功能完善 (v0.5)
-  ████████████░░░░░░░░░░░░ 55%
+  ██████████████░░░░░░░░░░ 65%
   ✅ 快速 API（QuickSpecificationBuilder + FieldCondition）
   ✅ 自动配置（MyBatis-Plus + Redis）
   ✅ Redis 分页优化（ZCARD + ZRANGE）
   ✅ Example 模块
+  ✅ 排序求值器（OrderEvaluator）
+  ✅ 租户上下文统一（ITenantProvider SPI）
   ⬜ Redis 表达式下推
-  ⬜ 排序求值器
   ⬜ 更多存储后端
   ⬜ 动态 Specification
 
@@ -198,6 +207,8 @@ Phase 3: 生态与成熟度 (v1.0)
 ## 建议的下一步行动
 
 1. **短期**: 实现 Redis 基础表达式下推（Equal/Between/GreaterThan/LessThan），减少全量扫描
-2. **中期**: 实现 `OrderEvaluator`，补齐内存排序管线
-3. **中长期**: 新增 Elasticsearch 或 JPA 执行器
+2. **中期**: 新增 Elasticsearch 或 JPA 执行器
+3. **中期**: 动态 Specification（REST 通用查询 / 后台筛选器）
 4. **长期**: Actuator 健康检查、性能基准测试、发布 v1.0
+
+> 租户上下文已统一为 `ITenantProvider`（2.6）。启用 `plain.tenant.enabled=true` 前，使用方必须提供一个从自身认证上下文取值的 `ITenantProvider` bean，否则启动失败——这是有意设计，避免租户条件静默退化成恒假。

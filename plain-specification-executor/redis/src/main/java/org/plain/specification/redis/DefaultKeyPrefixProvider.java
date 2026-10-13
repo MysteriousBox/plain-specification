@@ -1,5 +1,7 @@
 package org.plain.specification.redis;
 
+import org.plain.specification.core.spi.ITenantProvider;
+
 /**
  * Utility class that provides {@link RedisRepositoryConfig.KeyPrefixProvider} factory methods.
  * <p>
@@ -31,7 +33,7 @@ public final class DefaultKeyPrefixProvider {
      * @param tenantProvider 租户ID提供器
      * @return KeyPrefixProvider 实例
      */
-    public static RedisRepositoryConfig.KeyPrefixProvider enterpriseKeyPrefixProvider(String env, TenantProvider tenantProvider) {
+    public static RedisRepositoryConfig.KeyPrefixProvider enterpriseKeyPrefixProvider(String env, ITenantProvider tenantProvider) {
         return (clazz, globalPrefix) -> buildKeyPrefix(env, tenantProvider == null ? null : tenantProvider.getTenantId(), clazz, globalPrefix);
     }
 

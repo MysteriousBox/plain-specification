@@ -2,6 +2,7 @@ package org.plain.specification.redis;
 
 import lombok.var;
 import org.junit.jupiter.api.Test;
+import org.plain.specification.core.spi.ITenantProvider;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -24,7 +25,7 @@ class KeyNamingUtilsTest {
 
     @Test
     void testComputePrefix_enterprise() {
-        TenantProvider tenantProvider = () -> "t1";
+        ITenantProvider tenantProvider = () -> "t1";
         var provider = DefaultStrategies.enterpriseKeyPrefixProvider("prod", tenantProvider);
         String prefix = KeyNamingUtils.computePrefix(provider, Integer.class, "plain");
         assertEquals("prod:t1:plain:Integer:", prefix);

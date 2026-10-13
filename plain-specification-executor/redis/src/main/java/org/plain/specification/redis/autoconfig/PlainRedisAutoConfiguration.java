@@ -1,5 +1,6 @@
 package org.plain.specification.redis.autoconfig;
 
+import org.plain.specification.core.spi.ITenantProvider;
 import org.plain.specification.redis.DefaultStrategies;
 import org.plain.specification.redis.RedisRepositoryConfig;
 import org.plain.specification.redis.*;
@@ -31,15 +32,10 @@ public class PlainRedisAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public TenantProvider tenantProvider() {
-        // 默认实现返回 null，业务可自定义覆盖
-        return () -> null;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider(RedisRepositoryProperties props, TenantProvider tenantProvider) {
-        return DefaultStrategies.enterpriseKeyPrefixProvider(props.getEnv(), tenantProvider);
+    public RedisRepositoryConfig.KeyPrefixProvider keyPrefixProvider(RedisRepositoryProperties props,
+                                                                     ObjectProvider<ITenantProvider> tenantProvider) {
+        // 无 ITenantProvider bean 时 key 不含租户段；有则必须只有一个，避免两套租户来源
+        return DefaultStrategies.enterpriseKeyPrefixProvider(props.getEnv(), tenantProvider.getIfAvailable());
     }
 
     @Bean

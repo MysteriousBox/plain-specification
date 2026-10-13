@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.plain.specification.core.spi.ITenantProvider;
 
 import java.util.stream.Stream;
 
@@ -33,7 +34,7 @@ class DefaultStrategiesTest {
     @ParameterizedTest
     @MethodSource("enterpriseKeyPrefixProviderArguments")
     void testEnterpriseKeyPrefixProvider(String env, String tenant, String expected) {
-        TenantProvider tenantProvider = () -> tenant;
+        ITenantProvider tenantProvider = () -> tenant;
         var provider = DefaultStrategies.enterpriseKeyPrefixProvider(env, tenantProvider);
         String prefix = provider.provide(String.class, "plain");
         assertEquals(expected, prefix);
