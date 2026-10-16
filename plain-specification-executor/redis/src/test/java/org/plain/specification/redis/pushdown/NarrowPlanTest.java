@@ -149,10 +149,12 @@ class NarrowPlanTest {
     @Test
     void encodesTheWindowContract() {
         NarrowPlan plan = NarrowPlan.of(Cond.of(Cond.Op.STR_EQ, "label", "Al"));
-        List<String> args = plan.buildArgs("shape:", 10L, 19L);
+        List<String> args = plan.buildArgs("shape:", 10L, 19L, false);
+        assertEquals("desc", plan.buildArgs("shape:", 0L, 0L, true).get(3));
         assertEquals(Arrays.asList(
                 "shape:",            // hash key prefix
                 "10", "19",          // window
+                "asc",               // scan direction
                 "1",                 // field count
                 "label",             // fields
                 "1",                 // clause count
@@ -168,24 +170,24 @@ class NarrowPlanTest {
         List<Cond> conds = Arrays.asList(
                 Cond.of(Cond.Op.INT_GE, "count", "1"),
                 Cond.of(Cond.Op.INT_LE, "count", "9"));
-        List<String> args = NarrowPlan.conjunction(conds).buildArgs("s:", 0L, 4L);
-        assertEquals(Arrays.asList("s:", "0", "4", "1", "count", "1"), args.subList(0, 6));
+        List<String> args = NarrowPlan.conjunction(conds).buildArgs("s:", 0L, 4L, false);
+        assertEquals(Arrays.asList("s:", "0", "4", "asc", "1", "count", "1"), args.subList(0, 7));
         assertEquals(
                 Arrays.asList("2", "0", "6", "1", "1", "0", "8", "1", "9"),
-                args.subList(6, args.size()));
+                args.subList(7, args.size()));
     }
 
     @Test
     void encodesMultiValuedOperandsInOrder() {
         List<String> args = NarrowPlan.of(Cond.of(Cond.Op.STR_IN, "label", Arrays.asList("A", "B", "C")))
-                .buildArgs("s:", 0L, 0L);
+                .buildArgs("s:", 0L, 0L, false);
         assertEquals(Arrays.asList("3", "A", "B", "C"), args.subList(args.size() - 4, args.size()));
     }
 
     @Test
     void presenceConditionsCarryNoOperands() {
         List<String> args = NarrowPlan.of(Cond.presence(Cond.Op.NULLABLE, "stamp"))
-                .buildArgs("s:", 0L, 0L);
+                .buildArgs("s:", 0L, 0L, true);
         assertEquals("0", args.get(args.size() - 1));
     }
 }

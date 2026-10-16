@@ -1,10 +1,8 @@
 package org.plain.specification.redis;
 
-import org.plain.utils.JsonUtil;
 import org.plain.specification.core.spi.ITenantProvider;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -20,7 +18,8 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 默认策略实现集合，使用项目封装的 JsonUtil 进行序列化/反序列化，使用反射尝试获取 id 字段/方法。
+ * 默认策略实现集合，序列化走 {@link EntityJson}（项目 JSON 配置加上存储往返所需的三项设置），
+ * 反射尝试获取 id 字段/方法。
  *
  * @author Jayden.Liang
  * @since 1.0
@@ -39,9 +38,9 @@ public final class DefaultStrategies {
                 return null;
             }
             try {
-                return JsonUtil.serialize(entity);
+                return EntityJson.write(entity);
             } catch (Exception e) {
-                throw new IllegalStateException("Failed to serialize entity via JsonUtil: " + entity, e);
+                throw new IllegalStateException("Failed to serialize entity: " + entity, e);
             }
         };
     }
@@ -53,7 +52,7 @@ public final class DefaultStrategies {
                 return null;
             }
             try {
-                return JsonUtil.deserialize(serialized, clazz);
+                return EntityJson.read(serialized, clazz);
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to deserialize into " + clazz + ", source: " + serialized, e);
             }
@@ -172,7 +171,7 @@ public final class DefaultStrategies {
                 return Collections.emptyMap();
             }
             try {
-                String payload = JsonUtil.serialize(entity);
+                String payload = EntityJson.write(entity);
                 return Collections.singletonMap(RedisConstants.PAYLOAD_FIELD, payload);
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to serialize entity for payload: " + entity, e);
@@ -191,7 +190,7 @@ public final class DefaultStrategies {
                 return null;
             }
             try {
-                return JsonUtil.deserialize(String.valueOf(payload), clazz);
+                return EntityJson.read(String.valueOf(payload), clazz);
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to deserialize payload into " + clazz + ", source: " + payload, e);
             }
@@ -211,11 +210,11 @@ public final class DefaultStrategies {
                 return Collections.emptyMap();
             }
             try {
-                // serialize via JsonUtil then deserialize into a Map to reuse project's JSON config
-                String json = JsonUtil.serialize(entity);
+                // serialize then deserialize into a Map to reuse the storage JSON config
+                String json = EntityJson.write(entity);
                
-                Map<?, ?> map = JsonUtil.deserializeBuilder().registerModule(new JavaTimeModule()).deserialize(json, Map.class);
-                // JsonUtil may deserialize JSON `null` values into map entries with null values或
+                Map<?, ?> map = EntityJson.read(json, Map.class);
+                // The codec may turn JSON `null` into map entries whose value is null, or
                 // even produce entries with null keys (malformed input). Collectors.toMap(...) and
                 // some downstream code may throw on null keys — be defensive: skip null keys and
                 // preserve null values.
@@ -231,7 +230,7 @@ public final class DefaultStrategies {
                 }
                 return result;
              } catch (Exception e) {
-                 throw new IllegalStateException("Failed to convert entity to map via JsonUtil: " + entity, e);
+                 throw new IllegalStateException("Failed to convert entity to a field map: " + entity, e);
              }
          };
     }
@@ -322,10 +321,10 @@ public final class DefaultStrategies {
                 stringKeyed.put(String.valueOf(e.getKey()), e.getValue());
             }
             try {
-                String json = JsonUtil.serialize(stringKeyed);
-                return JsonUtil.deserialize(json, clazz);
+                String json = EntityJson.write(stringKeyed);
+                return EntityJson.read(json, clazz);
             } catch (Exception e) {
-                throw new IllegalStateException("Failed to convert fields into " + clazz + " via JsonUtil: " + stringKeyed, e);
+                throw new IllegalStateException("Failed to convert fields into " + clazz + ": " + stringKeyed, e);
             }
         };
     }
@@ -354,7 +353,7 @@ public final class DefaultStrategies {
     }
 
     /**
-     * Default FieldValueSerializer that uses JsonUtil for non-primitive values.
+     * Default FieldValueSerializer that uses the storage JSON codec for non-primitive values.
      */
     public static FieldValueSerializer defaultFieldValueSerializer() {
         return value -> {
@@ -365,7 +364,7 @@ public final class DefaultStrategies {
                 return String.valueOf(value);
             }
             try {
-                return JsonUtil.serialize(value);
+                return EntityJson.write(value);
             } catch (Exception e) {
                 return String.valueOf(value);
             }

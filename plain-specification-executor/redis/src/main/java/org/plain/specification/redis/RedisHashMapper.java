@@ -1,7 +1,6 @@
 package org.plain.specification.redis;
 
 import org.plain.specification.core.ISpecification;
-import org.plain.utils.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -145,13 +144,13 @@ class RedisHashMapper<T, TID> {
                 }
             } catch (Exception ex) {
                 log.warn("Failed to serialize field value with FieldValueSerializer: {}", ex.getMessage());
-                // fallback to default JsonUtil below
+                // fall back to the storage codec below
             }
         }
         try {
-            return JsonUtil.serialize(value);
+            return EntityJson.write(value);
         } catch (Exception ex) {
-            log.warn("Failed to serialize field value with JsonUtil: {}", ex.getMessage());
+            log.warn("Failed to serialize field value with the storage codec: {}", ex.getMessage());
             // Last resort: use toString()
             return String.valueOf(value);
         }

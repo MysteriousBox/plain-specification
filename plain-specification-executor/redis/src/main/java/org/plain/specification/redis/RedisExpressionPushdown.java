@@ -110,11 +110,13 @@ class RedisExpressionPushdown<T, TID> {
      * @param specification query specification
      * @param plan          compiled narrowing plan
      * @param limit         maximum number of entities, or {@link #NO_LIMIT}
+     * @param descending    true to walk the index high-score first
      * @return matching entities in index order
      */
-    List<T> findRange(final ISpecification<T> specification, final NarrowPlan plan, final long limit) {
+    List<T> findRange(final ISpecification<T> specification, final NarrowPlan plan, final long limit,
+                      boolean descending) {
         final List<T> result = new ArrayList<T>();
-        scan(specification, plan, new Sink<T>() {
+        scan(specification, plan, descending, new Sink<T>() {
             @Override
             public boolean add(List<T> verified) {
                 for (T entity : verified) {
@@ -138,7 +140,7 @@ class RedisExpressionPushdown<T, TID> {
      */
     long count(ISpecification<T> specification, NarrowPlan plan) {
         final long[] matched = new long[1];
-        scan(specification, plan, new Sink<T>() {
+        scan(specification, plan, false, new Sink<T>() {
             @Override
             public boolean add(List<T> verified) {
                 matched[0] += verified.size();
@@ -152,14 +154,15 @@ class RedisExpressionPushdown<T, TID> {
      * @param verifyEachWindow true when the caller can stop mid-way, so a window's survivors are
      *                         verified as soon as they come back instead of being buffered
      */
-    private void scan(ISpecification<T> specification, NarrowPlan plan, Sink<T> sink, boolean verifyEachWindow) {
+    private void scan(ISpecification<T> specification, NarrowPlan plan, boolean descending,
+                      Sink<T> sink, boolean verifyEachWindow) {
         final int window = windowSize();
         final long total = scanner.indexSize();
         final List<String> pending = new ArrayList<String>(window);
         long start = 0L;
         while (start < total) {
             final long end = Math.min(start + window - 1L, total - 1L);
-            pending.addAll(scanner.scanWindow(plan, start, end));
+            pending.addAll(scanner.scanWindow(plan, start, end, descending));
             start = end + 1;
             if (!pending.isEmpty() && (verifyEachWindow || pending.size() >= window)) {
                 if (!flush(pending, specification, sink)) {

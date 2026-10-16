@@ -155,20 +155,23 @@ public final class NarrowPlan {
     /**
      * Encode the scan window for the Lua script.
      * <p>
-     * Layout: {@code [prefix, windowStart, windowEnd, fieldCount, fields..,
+     * Layout: {@code [prefix, windowStart, windowEnd, direction, fieldCount, fields..,
      * clauseCount, (condCount, (fieldIndex, opCode, operandCount, operands..)..)..]}.
      *
      * @param hashKeyPrefix prefix that turns a ZSET member into the entity HASH key
      * @param windowStart   inclusive 0-based ZSET index to start scanning at
      * @param windowEnd     inclusive 0-based ZSET index to stop scanning at
+     * @param descending    true to walk the index high-score first, matching an ORDER BY on the
+     *                      declared score field
      * @return the ARGV list
      */
-    public List<String> buildArgs(String hashKeyPrefix, long windowStart, long windowEnd) {
+    public List<String> buildArgs(String hashKeyPrefix, long windowStart, long windowEnd, boolean descending) {
         final List<String> fields = referencedFields();
-        final List<String> args = new ArrayList<String>(8 + fields.size() + clauses.size() * 4);
+        final List<String> args = new ArrayList<String>(9 + fields.size() + clauses.size() * 4);
         args.add(hashKeyPrefix);
         args.add(Long.toString(windowStart));
         args.add(Long.toString(windowEnd));
+        args.add(descending ? "desc" : "asc");
         args.add(Integer.toString(fields.size()));
         args.addAll(fields);
         args.add(Integer.toString(clauses.size()));

@@ -25,19 +25,29 @@ class RedisLuaWriter<T, TID> {
     private static final String LUA_DELETE_BATCH_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL = "LUA_DELETE_BATCH_PER_ENTITY_SCRIPT must not be null";
 
     /**
-     * Lua script: atomic save to ZSET + per-entity HASH with HSET and EXPIRE.
+     * Lua script: atomic save to ZSET + per-entity HASH, clearing fields whose value is null.
+     * <p>
+     * A null reference has no HASH representation at all: the key is removed rather than written as
+     * an empty string, so an unset field and a field holding "" stay two different things and the
+     * read path rebuilds null as null.
+     * <p>
      * KEYS: [zsetKey, entityKey]
-     * ARGV: [score, id, field1, value1, field2, value2, ..., ttl]
+     * ARGV: [score, id, ttl, pairCount, field1, value1, ..., nullCount, nullField1, ...]
      */
     private static final RedisScript<Long> LUA_SAVE_PER_ENTITY_SCRIPT = Objects.requireNonNull(RedisScript.<Long>of(
             "redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])\n" +
-                    "local idx = 3\n" +
-                    "local last = #ARGV\n" +
-                    "while idx < last do\n" +
-                    "  redis.call('HSET', KEYS[2], ARGV[idx], ARGV[idx+1])\n" +
+                    "local ttl = tonumber(ARGV[3])\n" +
+                    "local idx = 4\n" +
+                    "local pairs = tonumber(ARGV[idx])\n" +
+                    "idx = idx + 1\n" +
+                    "for i = 1, pairs do\n" +
+                    "  redis.call('HSET', KEYS[2], ARGV[idx], ARGV[idx + 1])\n" +
                     "  idx = idx + 2\n" +
                     "end\n" +
-                    "local ttl = tonumber(ARGV[last])\n" +
+                    "local nulls = tonumber(ARGV[idx])\n" +
+                    "for i = 1, nulls do\n" +
+                    "  redis.call('HDEL', KEYS[2], ARGV[idx + i])\n" +
+                    "end\n" +
                     "if ttl and ttl > 0 then\n" +
                     "  redis.call('EXPIRE', KEYS[2], ttl)\n" +
                     "end\n" +
@@ -91,14 +101,25 @@ class RedisLuaWriter<T, TID> {
         }
 
         final String entityKey = requireKey(id);
-        final List<String> argsList = new ArrayList<>(2 + fields.size() * 2 + 1);
+        final List<String> nullFields = new ArrayList<>();
+        final List<String> valuePairs = new ArrayList<>(fields.size() * 2);
+        for (Map.Entry<String, Object> e : fields.entrySet()) {
+            if (e.getValue() == null) {
+                nullFields.add(e.getKey());
+                continue;
+            }
+            valuePairs.add(e.getKey());
+            valuePairs.add(hashMapper.serializeFieldValue(e.getValue()));
+        }
+
+        final List<String> argsList = new ArrayList<>(5 + valuePairs.size() + nullFields.size());
         argsList.add(String.valueOf(score));
         argsList.add(id);
-        for (Map.Entry<String, Object> e : fields.entrySet()) {
-            argsList.add(e.getKey());
-            argsList.add(hashMapper.serializeFieldValue(e.getValue()));
-        }
         argsList.add(String.valueOf(ttl));
+        argsList.add(String.valueOf(valuePairs.size() / 2));
+        argsList.addAll(valuePairs);
+        argsList.add(String.valueOf(nullFields.size()));
+        argsList.addAll(nullFields);
 
         final RedisScript<Long> script = Objects.requireNonNull(LUA_SAVE_PER_ENTITY_SCRIPT, LUA_SAVE_PER_ENTITY_SCRIPT_MUST_NOT_BE_NULL);
         final List<String> keys = new ArrayList<>(2);

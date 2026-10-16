@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -231,6 +232,15 @@ class RedisPushdownEquivalenceTest {
         specs.put("not(eq) collapses", new Specification<Doc>().query().where(
                 Expressions.<Doc>create().equal(Doc::getStatus, "ACTIVE")
                         .not(new NotExpression<>(new EqualExpression<>(Doc::getName, "name-1"))))
+                .getSpecification());
+        specs.put("order by name asc", Specification.where(Doc::getStatus).eq("ACTIVE")
+                .orderBy(Doc::getName).build());
+        specs.put("order by score desc", Specification.where(Doc::getStatus).eq("PENDING")
+                .orderByDescending(Doc::getScore).build());
+        specs.put("order by blob then id desc", Specification.where(Doc::getStatus).eq("BLOCKED")
+                .orderBy(Doc::getBlob).thenByDescending(Doc::getId).build());
+        specs.put("order only, no filter", new Specification<Doc>().query()
+                .orderBy(org.plain.specification.core.expression.Expressions.<Doc>create().orderBy(Doc::getScore))
                 .getSpecification());
         specs.put("empty specification", new Specification<Doc>());
         return specs;
@@ -454,8 +464,9 @@ class RedisPushdownEquivalenceTest {
             // key at all reads back as null
             assertEquals("OK:[w2]", outcome(() ->
                     idsOf(baseline.findRange(Specification.where(Doc::getStatus).isNull().build())).toString()));
-            assertEquals("OK:[w2, w3]", outcome(() ->
-                    idsOf(baseline.findRange(Specification.where(Doc::getScore).isNull().build())).toString()));
+            List<String> nullScore = idsOf(baseline.findRange(Specification.where(Doc::getScore).isNull().build()));
+            assertTrue(nullScore.contains("w2") && nullScore.contains("w3"),
+                    "IS NULL has to see both the empty string and the missing key, got " + nullScore);
         } finally {
             template.delete(keys);
         }
@@ -498,6 +509,125 @@ class RedisPushdownEquivalenceTest {
                 .expressionPushdown(pushdown)
                 .build();
         return new GenericRedisRepository<Doc, String>(template, scoped);
+    }
+
+    /**
+     * ORDER BY is not decoration: the in-memory evaluator chain applies
+     * {@link org.plain.specification.core.evaluate.OrderEvaluator}, so the repository has to return
+     * rows in that order too. This asserts the intended behaviour directly rather than only
+     * comparing two Redis paths, which would agree on being wrong.
+     */
+    @Test
+    void orderedReadsFollowTheSpecificationComparators() {
+        for (boolean pushdown : new boolean[]{false, true}) {
+            GenericRedisRepository<Doc, String> repo = repository(pushdown);
+            ISpecification<Doc> nameDesc = Specification.where(Doc::getStatus).eq("ACTIVE")
+                    .orderByDescending(Doc::getName).build();
+            ISpecification<Doc> idDesc = new Specification<Doc>().query()
+                    .orderBy(Expressions.<Doc>create().orderBy(Doc::getId))
+                    .getSpecification();
+
+            List<String> natural = idsOf(repo.findRange(new Specification<Doc>()));
+            List<String> sorted = idsOf(sortBy(nameDesc, repo.findRange(nameDesc)));
+            assertEquals(sorted, idsOf(repo.findRange(nameDesc)), "ORDER BY name DESC (" + (pushdown ? "pushdown" : "batch") + ")");
+            assertTrue(sorted.size() > 1 && !sorted.equals(natural),
+                    "the chosen ordering must actually differ from index order");
+
+            IPageResult<Doc> page = repo.page(idDesc, new PageQuery(1, 10));
+            assertEquals(idsOf(sortBy(idDesc, repo.findRange(idDesc))).subList(0, 10),
+                    idsOf(page.getRecords()), "ORDER BY id over page 1");
+        }
+    }
+
+    private static <D> List<D> sortBy(ISpecification<D> spec, java.util.Collection<D> rows) {
+        return new java.util.ArrayList<>(
+                org.plain.specification.core.evaluate.OrderEvaluator.INSTANCE.evaluate(new java.util.ArrayList<>(rows), spec));
+    }
+
+    /**
+     * Storage semantics of the null fix, observed in Redis rather than through the Java API: a null
+     * reference leaves no HASH field at all, while an empty string is a value that is stored. The
+     * previous behaviour (write "") made the two indistinguishable and made IS NULL unsatisfiable.
+     */
+    @Test
+    void nullFieldValuesAreAbsentFromTheHash() {
+        String zKey = zSetKey + ":nulls";
+        String prefix = hashPrefix + ":nulls:";
+        GenericRedisRepository<Doc, String> repo = repositoryAt(false, zKey, prefix);
+        try {
+            Doc doc = new Doc();
+            doc.setId("n1");
+            doc.setName("name-n1");
+            doc.setStatus(null);
+            doc.setScore(null);
+            doc.setBlob("");
+            doc.setBigId(5L);
+            repo.save(doc);
+
+            List<String> storedFields = template.opsForHash().keys(prefix + "n1").stream()
+                    .map(String::valueOf).sorted().collect(Collectors.toList());
+            assertEquals(Arrays.asList("bigId", "blob", "id", "name", "weird"), storedFields,
+                    "null-valued reference fields (status, score, ratio) must not be written as empty strings, "
+                            + "while the unset primitive stays a value");
+            assertEquals("", String.valueOf(template.opsForHash().get(prefix + "n1", "blob")),
+                    "an empty string is a value and stays stored");
+            assertEquals(1, repo.findRange(Specification.where(Doc::getStatus).isNull().build()).size(),
+                    "IS NULL now matches");
+            assertEquals(0, repo.findRange(Specification.where(Doc::getStatus).eq("").build()).size());
+
+            // updating a value back to null has to remove the field, not leave the old one behind
+            doc.setStatus("ACTIVE");
+            repo.save(doc);
+            assertEquals("ACTIVE", repo.findById("n1").getStatus());
+            doc.setStatus(null);
+            repo.save(doc);
+            assertFalse(template.opsForHash().hasKey(prefix + "n1", "status"),
+                    "a stale value must not survive an update to null");
+            assertTrue(repo.findRange(Specification.where(Doc::getStatus).isNull().build()).size() >= 1);
+        } finally {
+            template.delete(indexKeys(zKey, prefix, "n1"));
+        }
+    }
+
+    /**
+     * The score fast path and the materialised path have to agree, including on ties: the ZSET breaks
+     * ties by member, a stable sort keeps the index order, so both walks produce the same sequence.
+     */
+    @Test
+    void descendingScoreOrderAgreesAcrossBothReadPaths() {
+        RedisRepositoryConfig<Doc, String> declared = new RedisRepositoryConfig.Builder<Doc, String>()
+                .resolvedZsetKey(zSetKey)
+                .resolvedHashKeyPrefix(hashPrefix)
+                .batchSize(37)
+                .serializer(DefaultStrategies.jacksonSerializer())
+                .deserializer(DefaultStrategies.jacksonDeserializer(Doc.class))
+                .idExtractor(DefaultStrategies.reflectionIdExtractor(Doc.class, null))
+                .scoreProvider(entity -> entity.getBigId() == 0L ? 0d : (double) (entity.getId().length()))
+                .ttlProvider(DefaultStrategies.defaultTtlProvider())
+                .fieldExtractor(DefaultStrategies.reflectionFieldExtractor())
+                .entityBuilder(DefaultStrategies.reflectionEntityBuilder(Doc.class))
+                .scoreField("ratio")
+                .build();
+        GenericRedisRepository<Doc, String> fast = new GenericRedisRepository<Doc, String>(template, declared);
+        ISpecification<Doc> desc = new Specification<Doc>().query()
+                .orderBy(org.plain.specification.core.expression.Expressions.<Doc>create()
+                        .orderByDescending(Doc::getRatio))
+                .getSpecification();
+
+        List<String> viaIndex = idsOf(fast.findRange(desc));
+        IPageResult<Doc> page = fast.page(desc, new PageQuery(2, 9));
+        assertEquals(viaIndex.subList(9, 18), idsOf(page.getRecords()),
+                "the sliced page must be the same window of the ordered scan");
+        assertEquals(SEED_COUNT, page.getTotal());
+    }
+
+    private static List<String> indexKeys(String zKey, String prefix, String... ids) {
+        List<String> keys = new ArrayList<String>();
+        keys.add(zKey);
+        for (String id : ids) {
+            keys.add(prefix + id);
+        }
+        return keys;
     }
 
     @Test

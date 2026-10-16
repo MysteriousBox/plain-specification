@@ -71,6 +71,15 @@ public final class RedisRepositoryConfig<T, TID> {
      */
     private final boolean expressionPushdownEnabled;
 
+    /**
+     * Name of the entity property whose numeric value the ZSET score carries, or {@code null} when
+     * the score means something else. Declaring it lets an ORDER BY on that property, and integer
+     * bounds on it, be answered from the index itself instead of by sorting the whole result.
+     * The declaration is a promise: score must equal the property value, and that value must stay
+     * inside the range a double represents exactly (|v| <= 2^53).
+     */
+    private final String scoreField;
+
     /** Default ZSet name when none is explicitly provided. */
     private final String defaultZSetName;
 
@@ -90,6 +99,7 @@ public final class RedisRepositoryConfig<T, TID> {
         this.resolvedHashKeyPrefix = b.resolvedHashKeyPrefix;
         this.keyPrefixProvider = b.keyPrefixProvider;
         this.expressionPushdownEnabled = b.expressionPushdownEnabled;
+        this.scoreField = b.scoreField;
         this.defaultZSetName = b.defaultZsetName;
     }
 
@@ -165,6 +175,7 @@ public final class RedisRepositoryConfig<T, TID> {
             return sb.toString();
         };
         private boolean expressionPushdownEnabled = false;
+        private String scoreField;
         private String defaultZsetName = "index";
 
         /**
@@ -339,6 +350,20 @@ public final class RedisRepositoryConfig<T, TID> {
         @SuppressWarnings("UnusedReturnValue")
         public Builder<T, TID> expressionPushdown(boolean enabled) {
             this.expressionPushdownEnabled = enabled;
+            return this;
+        }
+
+        /**
+         * 声明 ZSET score 携带的是哪个实体属性的数值（int/long 且 |v| <= 2^53）。
+         * 声明后，对该属性的 ORDER BY 与整数范围条件可以直接用索引顺序回答；
+         * 未声明时排序一律在内存按 specification 的比较器执行。
+         *
+         * @param property 属性名（与 HASH field 同名），可为 null
+         * @return builder
+         */
+        @SuppressWarnings("UnusedReturnValue")
+        public Builder<T, TID> scoreField(String property) {
+            this.scoreField = property;
             return this;
         }
 

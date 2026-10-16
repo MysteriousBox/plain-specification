@@ -193,12 +193,18 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         if (specification == null) {
             throw new IllegalArgumentException("specification to findOne must not be null");
         }
+        final RedisRowOrder<T> order = rowOrder(specification);
+        if (!order.indexOrderIsRequested()) {
+            // the first row is only known once everything is sorted; there is no index for that order
+            final List<T> rows = new ArrayList<>(findRange(specification));
+            return rows.isEmpty() ? null : rows.get(0);
+        }
         final NarrowPlan plan = pushdown.planOf(specification);
         if (plan != null) {
-            final List<T> matched = pushdown.findRange(specification, plan, 1L);
+            final List<T> matched = pushdown.findRange(specification, plan, 1L, order.descending());
             return matched.isEmpty() ? null : matched.get(0);
         }
-        return batchScanner.findOneWithBatch(specification);
+        return batchScanner.findOneWithBatch(specification, order.descending());
     }
 
     @Override
@@ -206,11 +212,20 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         if (specification == null) {
             throw new IllegalArgumentException("specification to findRange must not be null");
         }
+        final RedisRowOrder<T> order = rowOrder(specification);
         final NarrowPlan plan = pushdown.planOf(specification);
-        if (plan != null) {
-            return pushdown.findRange(specification, plan, RedisExpressionPushdown.NO_LIMIT);
-        }
-        return batchScanner.findRangeWithBatch(specification, 0, -1);
+        final List<T> rows = plan != null
+                ? pushdown.findRange(specification, plan, RedisExpressionPushdown.NO_LIMIT, order.descending())
+                : new ArrayList<T>(batchScanner.findRangeWithBatch(specification, 0, -1, order.descending()));
+        return order.applyTo(rows);
+    }
+
+    /**
+     * @param specification query being served
+     * @return how the index can serve this specification's ORDER BY, if at all
+     */
+    private RedisRowOrder<T> rowOrder(ISpecification<T> specification) {
+        return RedisRowOrder.of(specification, getConfig().getScoreField());
     }
 
     // =========================================================================
@@ -256,11 +271,12 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
             throw new IllegalArgumentException("Page size must be greater than 0, actual: " + pageQuery.getPageSize());
         }
 
-        if (!batchScanner.hasWhereFilters(specification)) {
-            return pageOptimized(specification, pageQuery);
+        if (!batchScanner.hasWhereFilters(specification) && rowOrder(specification).indexOrderIsRequested()) {
+            return pageOptimized(specification, pageQuery, rowOrder(specification).descending());
         }
 
-        // findRange already dispatches between the pushdown scan and the batch scan.
+        // findRange already dispatches between the pushdown scan and the batch scan, and applies
+        // the specification's ordering.
         final Collection<T> allMatched = findRange(specification);
         final List<T> matchedList = new ArrayList<>(allMatched);
         final long total = matchedList.size();
@@ -277,8 +293,10 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
      *   <li>ZRANGE with offset/count — O(log N + M) 仅获取当前页 ID</li>
      *   <li>Pipeline HGETALL — 仅读取当前页实体</li>
      * </ul>
+     * Only reachable when the ZSET order already is the requested order (no ORDER BY, or an ORDER BY
+     * on the declared score field), in which case {@code descending} walks it high-score first.
      */
-    private IPageResult<T> pageOptimized(ISpecification<T> specification, PageQuery pageQuery) {
+    private IPageResult<T> pageOptimized(ISpecification<T> specification, PageQuery pageQuery, boolean descending) {
         final String zKey = Objects.requireNonNull(zSetKey());
         final long total = batchScanner.countOptimized(specification);
 
@@ -290,7 +308,9 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
             return new RedisPageResultAdapter<>(Collections.emptyList(), pageQuery, total);
         }
 
-        final Set<?> ids = redisTemplate.opsForZSet().range(zKey, offset, offset + pageSize - 1);
+        final Set<?> ids = descending
+                ? redisTemplate.opsForZSet().reverseRange(zKey, offset, offset + pageSize - 1)
+                : redisTemplate.opsForZSet().range(zKey, offset, offset + pageSize - 1);
         if (ids == null || ids.isEmpty()) {
             return new RedisPageResultAdapter<>(Collections.emptyList(), pageQuery, total);
         }

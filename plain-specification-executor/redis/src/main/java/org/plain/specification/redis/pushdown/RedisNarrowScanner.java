@@ -27,16 +27,17 @@ public class RedisNarrowScanner {
 
     /**
      * KEYS: [zsetKey]
-     * ARGV: [hashKeyPrefix, windowStart, windowEnd, fieldCount, fields..,
+     * ARGV: [hashKeyPrefix, windowStart, windowEnd, direction, fieldCount, fields..,
      * clauseCount, (condCount, (fieldIndex, opCode, operandCount, operands..)..)..]
-     * Returns: the ids in the window that survive the narrowing, in ZRANGE order.
+     * Returns: the ids in the window that survive the narrowing, in index order.
      */
     private static final String LUA_NARROW_WINDOW =
             "local zkey = KEYS[1]\n"
                     + "local prefix = ARGV[1]\n"
                     + "local wstart = tonumber(ARGV[2])\n"
                     + "local wend = tonumber(ARGV[3])\n"
-                    + "local cursor = 4\n"
+                    + "local reversed = ARGV[4] == 'desc'\n"
+                    + "local cursor = 5\n"
                     + "local nfields = tonumber(ARGV[cursor]); cursor = cursor + 1\n"
                     + "local fields = {}\n"
                     + "for i = 1, nfields do fields[i] = ARGV[cursor]; cursor = cursor + 1 end\n"
@@ -134,7 +135,12 @@ public class RedisNarrowScanner {
                     + "  if op <= 8 then return intOp(op, v, cond.o) end\n"
                     + "  return strOp(op, v, cond.o)\n"
                     + "end\n"
-                    + "local ids = redis.call('ZRANGE', zkey, wstart, wend)\n"
+                    + "local ids\n"
+                    + "if reversed then\n"
+                    + "  ids = redis.call('ZREVRANGE', zkey, wstart, wend)\n"
+                    + "else\n"
+                    + "  ids = redis.call('ZRANGE', zkey, wstart, wend)\n"
+                    + "end\n"
                     + "if #clauses == 0 then return ids end\n"
                     + "local out = {}\n"
                     + "for i = 1, #ids do\n"
@@ -196,13 +202,14 @@ public class RedisNarrowScanner {
     /**
      * Run the narrowing over one index window.
      *
-     * @param plan  the narrowing plan
-     * @param start inclusive 0-based index offset
-     * @param end   inclusive 0-based index offset
+     * @param plan       the narrowing plan
+     * @param start      inclusive 0-based index offset
+     * @param end        inclusive 0-based index offset
+     * @param descending true to walk the index high-score first
      * @return surviving ids in index order, never {@code null}
      */
-    public List<String> scanWindow(NarrowPlan plan, long start, long end) {
-        final List<String> args = plan.buildArgs(hashKeyPrefix, start, end);
+    public List<String> scanWindow(NarrowPlan plan, long start, long end, boolean descending) {
+        final List<String> args = plan.buildArgs(hashKeyPrefix, start, end, descending);
         final List<Object> raw = redisTemplate.execute(NARROW_WINDOW_SCRIPT,
                 Collections.singletonList(zSetKey), args.toArray());
         if (raw == null || raw.isEmpty()) {

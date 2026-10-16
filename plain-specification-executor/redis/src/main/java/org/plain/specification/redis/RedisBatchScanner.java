@@ -81,7 +81,7 @@ class RedisBatchScanner<T, TID> {
      * @param specification filter specification
      * @return first matching entity, or null
      */
-    T findOneWithBatch(ISpecification<T> specification) {
+    T findOneWithBatch(ISpecification<T> specification, boolean descending) {
         validateSpecificationAndBatch(specification);
 
         long start = 0L;
@@ -89,7 +89,7 @@ class RedisBatchScanner<T, TID> {
         final String zKey = requireZSetKey();
 
         while (true) {
-            final Set<?> ids = redisTemplate.opsForZSet().range(zKey, start, end);
+            final Set<?> ids = fetchIds(zKey, start, end, descending);
             if (ids == null || ids.isEmpty()) {
                 return null;
             }
@@ -116,7 +116,7 @@ class RedisBatchScanner<T, TID> {
      * @param end           end index in ZSET (-1 for unbounded)
      * @return matching entities
      */
-    Collection<T> findRangeWithBatch(ISpecification<T> specification, long start, long end) {
+    Collection<T> findRangeWithBatch(ISpecification<T> specification, long start, long end, boolean descending) {
         validateSpecificationAndBatch(specification);
 
         final List<T> results = new ArrayList<>();
@@ -126,7 +126,7 @@ class RedisBatchScanner<T, TID> {
         boolean finished = false;
         while (!finished) {
             final long fetchEnd = calculateFetchEnd(end, currentStart);
-            final Set<?> ids = redisTemplate.opsForZSet().range(zKey, currentStart, fetchEnd);
+            final Set<?> ids = fetchIds(zKey, currentStart, fetchEnd, descending);
             if (ids == null || ids.isEmpty()) {
                 finished = true;
             } else {
@@ -198,6 +198,16 @@ class RedisBatchScanner<T, TID> {
     }
 
     // ---- internal helpers ----
+
+    /**
+     * Read one window of ids out of the index. Walking it high-score first is what lets an
+     * {@code ORDER BY} on the score field be answered without materialising the whole set.
+     */
+    private Set<?> fetchIds(String zKey, long start, long end, boolean descending) {
+        return descending
+                ? redisTemplate.opsForZSet().reverseRange(zKey, start, end)
+                : redisTemplate.opsForZSet().range(zKey, start, end);
+    }
 
     private List<String> mapIdsToKeys(Set<?> ids) {
         return ids.stream()
