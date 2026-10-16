@@ -2,6 +2,7 @@ package org.plain.specification.redis;
 
 import org.plain.specification.core.*;
 import org.plain.specification.core.spi.ISpecificationExecutor;
+import org.plain.specification.redis.pushdown.NarrowPlan;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,7 +47,7 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
     private final RedisHashMapper<T, TID> hashMapper;
     private final RedisLuaWriter<T, TID> luaWriter;
     private final RedisBatchScanner<T, TID> batchScanner;
-
+    private final RedisExpressionPushdown<T, TID> pushdown;
     /**
      * 构造器。
      *
@@ -66,6 +67,7 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         this.hashMapper = new RedisHashMapper<>(redisTemplate, config);
         this.luaWriter = new RedisLuaWriter<>(redisTemplate, config, hashMapper);
         this.batchScanner = new RedisBatchScanner<>(redisTemplate, config, hashMapper, this::fetchHashes);
+        this.pushdown = new RedisExpressionPushdown<>(redisTemplate, config, hashMapper, this::fetchHashes);
     }
 
     /**
@@ -191,6 +193,11 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
         if (specification == null) {
             throw new IllegalArgumentException("specification to findOne must not be null");
         }
+        final NarrowPlan plan = pushdown.planOf(specification);
+        if (plan != null) {
+            final List<T> matched = pushdown.findRange(specification, plan, 1L);
+            return matched.isEmpty() ? null : matched.get(0);
+        }
         return batchScanner.findOneWithBatch(specification);
     }
 
@@ -198,6 +205,10 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
     public Collection<T> findRange(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to findRange must not be null");
+        }
+        final NarrowPlan plan = pushdown.planOf(specification);
+        if (plan != null) {
+            return pushdown.findRange(specification, plan, RedisExpressionPushdown.NO_LIMIT);
         }
         return batchScanner.findRangeWithBatch(specification, 0, -1);
     }
@@ -210,6 +221,10 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
     public long count(ISpecification<T> specification) {
         if (specification == null) {
             throw new IllegalArgumentException("specification to count must not be null");
+        }
+        final NarrowPlan plan = pushdown.planOf(specification);
+        if (plan != null) {
+            return pushdown.count(specification, plan);
         }
         return batchScanner.countOptimized(specification);
     }
@@ -245,7 +260,8 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
             return pageOptimized(specification, pageQuery);
         }
 
-        final Collection<T> allMatched = batchScanner.findRangeWithBatch(specification, 0, -1);
+        // findRange already dispatches between the pushdown scan and the batch scan.
+        final Collection<T> allMatched = findRange(specification);
         final List<T> matchedList = new ArrayList<>(allMatched);
         final long total = matchedList.size();
         final int fromIndex = (int) Math.min((long) (pageQuery.getPage() - 1) * pageQuery.getPageSize(), total);
@@ -413,8 +429,7 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
 
     @Override
     public org.plain.specification.core.visitor.IExpressionVisitor<T, ?> getVisitor() {
-        throw new UnsupportedOperationException(
-                "Redis repository does not support expression pushdown; all filtering is performed in-memory via batch scan");
+        return pushdown.getVisitor();
     }
 
     @Override
@@ -429,6 +444,9 @@ public abstract class BaseRedisRepository<T, TID> implements IBaseRepository<T, 
 
     @Override
     public Set<Class<? extends org.plain.specification.core.expression.IExpression<T>>> supportedExpressions() {
-        return Collections.emptySet();
+        if (!getConfig().isExpressionPushdownEnabled()) {
+            return Collections.emptySet();
+        }
+        return org.plain.specification.redis.pushdown.RedisNarrowingVisitor.narrowedExpressionTypes();
     }
 }

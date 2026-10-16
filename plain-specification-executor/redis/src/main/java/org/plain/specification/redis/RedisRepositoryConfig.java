@@ -64,6 +64,13 @@ public final class RedisRepositoryConfig<T, TID> {
     /** Strategy for computing key prefixes. */
     private final KeyPrefixProvider keyPrefixProvider;
 
+    /**
+     * Opt-in flag: evaluate the pushable part of a specification inside Redis so that only
+     * candidate ids come back. Disabled by default because it changes which commands the read path
+     * issues.
+     */
+    private final boolean expressionPushdownEnabled;
+
     /** Default ZSet name when none is explicitly provided. */
     private final String defaultZSetName;
 
@@ -82,6 +89,7 @@ public final class RedisRepositoryConfig<T, TID> {
         this.resolvedZSetKey = b.resolvedZsetKey;
         this.resolvedHashKeyPrefix = b.resolvedHashKeyPrefix;
         this.keyPrefixProvider = b.keyPrefixProvider;
+        this.expressionPushdownEnabled = b.expressionPushdownEnabled;
         this.defaultZSetName = b.defaultZsetName;
     }
 
@@ -156,6 +164,7 @@ public final class RedisRepositoryConfig<T, TID> {
             sb.append(entityName).append(KEY_SEPARATOR);
             return sb.toString();
         };
+        private boolean expressionPushdownEnabled = false;
         private String defaultZsetName = "index";
 
         /**
@@ -317,6 +326,19 @@ public final class RedisRepositoryConfig<T, TID> {
             if (name.isEmpty()) {
                 throw new IllegalArgumentException("defaultZSetName must not be empty");
             }
+            return this;
+        }
+
+        /**
+         * 开启表达式下推：把 specification 中可保守判定的部分编译成服务端 Lua 过滤，
+         * 只把候选 id 取回后仍在内存做最终校验。默认关闭。
+         *
+         * @param enabled true 表示开启
+         * @return builder
+         */
+        @SuppressWarnings("UnusedReturnValue")
+        public Builder<T, TID> expressionPushdown(boolean enabled) {
+            this.expressionPushdownEnabled = enabled;
             return this;
         }
 

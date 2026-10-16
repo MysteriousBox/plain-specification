@@ -78,6 +78,7 @@ public class RedisRepositoryConfigResolver {
 
         long defaultTtl = effectiveConfig.getDefaultTtl();
         int batchSize = effectiveConfig.getBatchSize();
+        boolean expressionPushdown = effectiveConfig.isExpressionPushdownEnabled();
 
         Serializer<T> serializer = chooseSerializer(overrides);
         Deserializer<T> deserializer = chooseDeserializer(overrides, entityClass);
@@ -93,6 +94,7 @@ public class RedisRepositoryConfigResolver {
                 .resolvedHashKeyPrefix(resolvedKeyPrefix)
                 .defaultTtl(defaultTtl)
                 .batchSize(batchSize)
+                .expressionPushdown(expressionPushdown)
                 .serializer(serializer)
                 .deserializer(deserializer)
                 .idExtractor(idExtractor)
