@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS t_user (
+CREATE TABLE IF NOT EXISTS users (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(64)  NOT NULL,
     email       VARCHAR(128),
