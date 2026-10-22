@@ -131,7 +131,9 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
 
     @Override
     public long count(ISpecification<T> specification) {
-        return baseMapper.selectCount(compileToPo(specification));
+        // COUNT 不能带 ORDER BY：PG 会报 "column ... must appear in the GROUP BY clause"，
+        // 而排序对计数没有意义。带排序的 spec 现在无处不在（生成的查询条件默认就带）。
+        return baseMapper.selectCount(compileWhereToPo(specification));
     }
 
     @Override
@@ -153,9 +155,9 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
     public CompletableFuture<Void> deleteRangeAsync(ISpecification<T> specification) {
         return CompletableFuture.runAsync(() -> {
             if (transactionTemplate != null) {
-                transactionTemplate.executeWithoutResult(status -> baseMapper.delete(compileToPo(specification)));
+                transactionTemplate.executeWithoutResult(status -> baseMapper.delete(compileWhereToPo(specification)));
             } else {
-                baseMapper.delete(compileToPo(specification));
+                baseMapper.delete(compileWhereToPo(specification));
             }
         }, executor);
     }
@@ -165,6 +167,8 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
     // -------------------------------------------------------------------------
 
     protected QueryWrapper<P> compileToPo(ISpecification<T> specification) {
+        // where 与 order 必须共用同一个 visitor：order 表达式作用在 visitor 持有的 wrapper 上，
+        // 换成新 visitor 会丢掉 where 条件（页面上表现为"过滤条件全失效"，运行时探针抓到过）。
         MybatisPlusEntityToPoVisitor<T, P> visitor = new MybatisPlusEntityToPoVisitor<>(entityClass());
         QueryWrapper<P> queryWrapper = Wrappers.query();
         for (IExpressionDescriptor<T> whereExpression : specification.getWhereExpressions()) {
@@ -172,6 +176,18 @@ public abstract class MybatisPlusBaseRepositoryOfP<T, P, TID extends Serializabl
         }
         for (OrderExpressionInfo<T> orderExpression : specification.getOrderExpressions()) {
             queryWrapper = orderExpression.func(visitor);
+        }
+        return queryWrapper;
+    }
+
+    /**
+     * 只编译 WHERE：COUNT 与 DELETE 不接受 ORDER BY（PG 的 COUNT 会要求进 GROUP BY）。
+     */
+    protected QueryWrapper<P> compileWhereToPo(ISpecification<T> specification) {
+        MybatisPlusEntityToPoVisitor<T, P> visitor = new MybatisPlusEntityToPoVisitor<>(entityClass());
+        QueryWrapper<P> queryWrapper = Wrappers.query();
+        for (IExpressionDescriptor<T> whereExpression : specification.getWhereExpressions()) {
+            queryWrapper = whereExpression.func(visitor);
         }
         return queryWrapper;
     }
